@@ -48,6 +48,9 @@ dependencies {
 
     // h2db
     runtimeOnly 'com.h2database:h2'
+
+    // Playwright (Java)
+    implementation 'com.microsoft.playwright:playwright:1.45.0'
 }
 
 tasks.named('test') {
