@@ -38,3 +38,5 @@ out/
 
 ### env ###
 application-secret.properties
+.DS_Store
+snapshots/
