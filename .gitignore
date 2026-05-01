@@ -36,5 +36,7 @@ out/
 ### VS Code ###
 .vscode/
 
+### env ###
+application-secret.properties
 .DS_Store
 snapshots/
