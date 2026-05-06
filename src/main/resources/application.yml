@@ -15,6 +15,7 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+      data-locations: classpath:wcag.sql
 
   jpa:
     defer-datasource-initialization: true
