@@ -1,5 +1,7 @@
 package com.example.be_young04.domain.analysis.parser;
 
+import com.example.be_young04.domain.analysis.accessibility.AccessibilityAnalyzer;
+import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.CodeAnalysisResult;
 
 import java.util.ArrayList;
@@ -11,12 +13,16 @@ import java.util.regex.Pattern;
 
 public class JsCodeParser implements CodeParser {
 
+    private final AccessibilityAnalyzer accessibilityAnalyzer = new AccessibilityAnalyzer();
+
     @Override
     public CodeAnalysisResult parse(String code) {
         List<String> imports = extractImports(code);
         List<String> methods = extractFunctions(code);
         List<String> components = extractComponents(code);
         List<String> jsxElements = extractJsxElements(code);
+        List<AccessibilityCheckResult> accessibilityChecks = accessibilityAnalyzer.analyze(code);
+        List<String> accessibilityIssues = accessibilityAnalyzer.analyzeIssueMessages(code);
         int lineCount = code == null || code.isBlank() ? 0 : code.split("\n").length;
 
         return CodeAnalysisResult.builder()
@@ -25,6 +31,8 @@ public class JsCodeParser implements CodeParser {
                 .imports(imports)
                 .components(components)
                 .jsxElements(jsxElements)
+                .accessibilityIssues(accessibilityIssues)
+                .accessibilityChecks(accessibilityChecks)
                 .lineCount(lineCount)
                 .build();
     }
