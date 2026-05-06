@@ -15,4 +15,8 @@ public class AccessibilityAnalysisService {
     public AccessibilityCheckResult analyzeSc111Decorative(String code) {
         return accessibilityAnalyzer.analyzeSc111Decorative(code).get(0);
     }
+
+    public AccessibilityCheckResult analyzeSc121(String code) {
+        return accessibilityAnalyzer.analyzeSc121(code).get(0);
+    }
 }
