@@ -38,6 +38,15 @@ public class AccessibilityAnalysisController {
     }
 
     @Operation(
+            summary = "1.1.1 \uCEE8\uD2B8\uB864/\uC785\uB825 \uC811\uADFC\uC131 \uCF54\uB4DC+AI \uAC80\uC0AC",
+            description = "\uCEE8\uD2B8\uB864 \uC5ED\uD560\uC758 \uBE44\uD14D\uC2A4\uD2B8 \uCF58\uD150\uCE20\uC5D0 aria-label, aria-labelledby, title, alt \uB4F1 accessible name \uD6C4\uBCF4\uAC00 \uC788\uB294\uC9C0 \uCF54\uB4DC\uB85C \uD655\uC778\uD558\uACE0, \uBAA9\uC801 \uC124\uBA85 \uD488\uC9C8\uC740 AI \uAC80\uD1A0 \uD544\uC694\uB85C \uD45C\uC2DC\uD569\uB2C8\uB2E4."
+    )
+    @PostMapping("/sc-1-1-1/control-input")
+    public AccessibilityCheckResult analyzeSc111ControlInput(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc111ControlInput(request.getCode());
+    }
+
+    @Operation(
             summary = "1.2.1 \uC624\uB514\uC624 \uC804\uC6A9 \uC811\uADFC\uC131 \uC815\uC801 \uAC80\uC0AC",
             description = "\uC0AC\uC804\uB179\uC74C audio \uD0DC\uADF8\uC758 track \uD0DC\uADF8 \uB610\uB294 \uC778\uC811\uD55C \uD14D\uC2A4\uD2B8 \uB300\uBCF8 \uB9C1\uD06C \uC874\uC7AC \uC5EC\uBD80\uB97C \uC815\uC801 \uBD84\uC11D\uD569\uB2C8\uB2E4."
     )

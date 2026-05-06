@@ -17,5 +17,9 @@ public class AccessibilityCheckResult {
     private String implementationMethod;
     private String implementationDescription;
     private String status;
+    private boolean aiReviewRequired;
+    private String aiReviewGuide;
+    private String aiReviewStatus;
+    private String aiReviewResult;
     private List<AccessibilityIssue> issues;
 }
