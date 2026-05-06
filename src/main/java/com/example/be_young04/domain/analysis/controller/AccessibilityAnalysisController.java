@@ -54,4 +54,13 @@ public class AccessibilityAnalysisController {
     public AccessibilityCheckResult analyzeSc121(@RequestBody CodeAnalyzeRequest request) {
         return accessibilityAnalysisService.analyzeSc121(request.getCode());
     }
+
+    @Operation(
+            summary = "1.2.1 \uBE44\uB514\uC624 \uC804\uC6A9 \uC811\uADFC\uC131 \uC815\uC801 \uAC80\uC0AC",
+            description = "\uC0AC\uC804\uB179\uC74C video \uD0DC\uADF8\uC758 track kind=\"descriptions\" \uB610\uB294 \uC778\uC811\uD55C \uD14D\uC2A4\uD2B8 \uB300\uBCF8 \uB9C1\uD06C \uC874\uC7AC \uC5EC\uBD80\uB97C \uC815\uC801 \uBD84\uC11D\uD569\uB2C8\uB2E4."
+    )
+    @PostMapping("/sc-1-2-1/video-only-prerecorded")
+    public AccessibilityCheckResult analyzeSc121VideoOnly(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc121VideoOnly(request.getCode());
+    }
 }

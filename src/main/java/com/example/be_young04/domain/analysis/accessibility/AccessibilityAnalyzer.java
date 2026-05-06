@@ -5,6 +5,7 @@ import com.example.be_young04.domain.analysis.accessibility.rule.Sc111ControlInp
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc111DecorativeContentRule;
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc111NonTextContentRule;
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc121AudioOnlyPrerecordedRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc121VideoOnlyPrerecordedRule;
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
 
@@ -15,7 +16,8 @@ public class AccessibilityAnalyzer {
     private final List<AccessibilityRule> rules = List.of(
             new Sc111NonTextContentRule(),
             new Sc111ControlInputNameRule(),
-            new Sc121AudioOnlyPrerecordedRule()
+            new Sc121AudioOnlyPrerecordedRule(),
+            new Sc121VideoOnlyPrerecordedRule()
     );
 
     public List<AccessibilityCheckResult> analyze(String code) {
@@ -38,6 +40,10 @@ public class AccessibilityAnalyzer {
 
     public List<AccessibilityCheckResult> analyzeSc121(String code) {
         return List.of(new Sc121AudioOnlyPrerecordedRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc121VideoOnly(String code) {
+        return List.of(new Sc121VideoOnlyPrerecordedRule().analyze(code));
     }
 
     public List<String> analyzeIssueMessages(String code) {

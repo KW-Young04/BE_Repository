@@ -27,4 +27,8 @@ public class AccessibilityAnalysisService {
     public AccessibilityCheckResult analyzeSc121(String code) {
         return accessibilityAnalyzer.analyzeSc121(code).get(0);
     }
+
+    public AccessibilityCheckResult analyzeSc121VideoOnly(String code) {
+        return accessibilityAnalyzer.analyzeSc121VideoOnly(code).get(0);
+    }
 }
