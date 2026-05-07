@@ -40,6 +40,7 @@ public class AnalysisPromptBuilder {
                 - imports: %s
                 - components: %s
                 - jsxElements: %s
+                - accessibilityChecks: %s
                 - lineCount: %d
 
                 [렌더링 스냅샷 정보]
@@ -68,6 +69,7 @@ public class AnalysisPromptBuilder {
                 parsingResult.getImports(),
                 parsingResult.getComponents(),
                 parsingResult.getJsxElements(),
+                parsingResult.getAccessibilityChecks(),
                 parsingResult.getLineCount(),
                 snapshotResponse.getImagePath(),
                 snapshotResponse.getWidth(),

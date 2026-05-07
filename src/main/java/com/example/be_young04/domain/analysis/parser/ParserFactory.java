@@ -16,7 +16,9 @@ public class ParserFactory {
         if (lowerCaseFileName.endsWith(".js")
                 || lowerCaseFileName.endsWith(".jsx")
                 || lowerCaseFileName.endsWith(".ts")
-                || lowerCaseFileName.endsWith(".tsx")) {
+                || lowerCaseFileName.endsWith(".tsx")
+                || lowerCaseFileName.endsWith(".html")
+                || lowerCaseFileName.endsWith(".htm")) {
             return new JsCodeParser();
         }
 
