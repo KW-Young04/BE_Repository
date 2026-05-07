@@ -30,4 +30,19 @@ public class WcagCheckResult {
         CODE_AI,    // 코드 분석 후 AI 추가 판단 필요
         AI          // AI만 판단 가능
     }
+
+    // TARGET_FILE_PATH
+    private String filePath;
+
+    // SUGGESTION
+    private String suggestion;
+
+    // WCAG_ITEMS.TITLE 참조용
+    private String title;
+
+    // CSS_SELECTOR
+    private String cssSelector;
+    
+    // COMPONENT_NAME
+    private String componentName;
 }

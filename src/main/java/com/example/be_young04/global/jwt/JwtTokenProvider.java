@@ -38,4 +38,28 @@ public class JwtTokenProvider {
                 .signWith(secretKey)
                 .compact();
     }
+
+    
+    public Long getGithubId(String token) {
+        return Long.valueOf(
+                Jwts.parser()
+                        .verifyWith(secretKey)
+                        .build()
+                        .parseSignedClaims(token)
+                        .getPayload()
+                        .getSubject()
+        );
+        }
+
+        public boolean validateToken(String token) {
+        try {
+                Jwts.parser()
+                        .verifyWith(secretKey)
+                        .build()
+                        .parseSignedClaims(token);
+                return true;
+        } catch (Exception e) {
+                return false;
+        }
+        }
 }
