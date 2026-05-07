@@ -6,6 +6,16 @@ import com.example.be_young04.domain.analysis.accessibility.rule.Sc111Decorative
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc111NonTextContentRule;
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc121AudioOnlyPrerecordedRule;
 import com.example.be_young04.domain.analysis.accessibility.rule.Sc121VideoOnlyPrerecordedRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc231FlashThresholdRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc241BypassBlocksRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc242PageTitleRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc243FocusOrderRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc311PageLanguageRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc321NoContextChangeOnFocusRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc322NoContextChangeOnInputRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc331ErrorIdentificationRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc332LabelsOrInstructionsRule;
+import com.example.be_young04.domain.analysis.accessibility.rule.Sc412NameRoleValueRule;
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
 
@@ -16,8 +26,23 @@ public class AccessibilityAnalyzer {
     private final List<AccessibilityRule> rules = List.of(
             new Sc111NonTextContentRule(),
             new Sc111ControlInputNameRule(),
+            new Sc111DecorativeContentRule(),
+
             new Sc121AudioOnlyPrerecordedRule(),
-            new Sc121VideoOnlyPrerecordedRule()
+            new Sc121VideoOnlyPrerecordedRule(),
+
+            new Sc231FlashThresholdRule(),
+            new Sc241BypassBlocksRule(),
+            new Sc242PageTitleRule(),
+            new Sc243FocusOrderRule(),
+
+            new Sc311PageLanguageRule(),
+            new Sc321NoContextChangeOnFocusRule(),
+            new Sc322NoContextChangeOnInputRule(),
+            new Sc331ErrorIdentificationRule(),
+            new Sc332LabelsOrInstructionsRule(),
+
+            new Sc412NameRoleValueRule()
     );
 
     public List<AccessibilityCheckResult> analyze(String code) {
@@ -44,6 +69,46 @@ public class AccessibilityAnalyzer {
 
     public List<AccessibilityCheckResult> analyzeSc121VideoOnly(String code) {
         return List.of(new Sc121VideoOnlyPrerecordedRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc231(String code) {
+        return List.of(new Sc231FlashThresholdRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc241(String code) {
+        return List.of(new Sc241BypassBlocksRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc242(String code) {
+        return List.of(new Sc242PageTitleRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc243(String code) {
+        return List.of(new Sc243FocusOrderRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc311(String code) {
+        return List.of(new Sc311PageLanguageRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc321(String code) {
+        return List.of(new Sc321NoContextChangeOnFocusRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc322(String code) {
+        return List.of(new Sc322NoContextChangeOnInputRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc331(String code) {
+        return List.of(new Sc331ErrorIdentificationRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc332(String code) {
+        return List.of(new Sc332LabelsOrInstructionsRule().analyze(code));
+    }
+
+    public List<AccessibilityCheckResult> analyzeSc412(String code) {
+        return List.of(new Sc412NameRoleValueRule().analyze(code));
     }
 
     public List<String> analyzeIssueMessages(String code) {
