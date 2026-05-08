@@ -22,6 +22,7 @@ import com.example.be_young04.domain.repository.entity.Repository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
@@ -41,7 +42,7 @@ public class WcagAnalysisService {
     private final AnalysisIssueLocationRepository analysisIssueLocationRepository;
 
     @Transactional
-    public Long analyze(Long githubId, String repositoryUrl, String deploymentUrl, String branchName) {
+    public Long analyze(Long githubId, String repositoryUrl, String branchName, MultipartFile imageFile) {
 
         // Stage 1 — 분석 요청 저장 (PENDING)
         Repository repository = dbRepositoryService.getOrCreate(githubId, repositoryUrl);
@@ -59,12 +60,10 @@ public class WcagAnalysisService {
             analysisRequest.updateStatus("RUNNING");
 
             // Stage 1 — 파일 목록 수집
-            RepositoryTreeResponse tree = githubRepositoryService
-                    .getRepositoryTree(repositoryUrl);
+            RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(repositoryUrl);
 
             // Stage 2 — 스냅샷 캡처
-            SnapshotResponse snapshot = snapshotService
-                    .capture(deploymentUrl);
+            SnapshotResponse snapshot = snapshotService.receive(imageFile);
 
             // Stage 3 — 파일 순회 + 체커 실행 + wcagId 기준 병합
             Map<String, String> fileContents = new LinkedHashMap<>();
@@ -110,13 +109,13 @@ public class WcagAnalysisService {
                 // Stage 4-2~4 — 프롬프트 구성 + Gemini 호출 + 파싱
                 String prompt = analysisPromptBuilder.build(
                         repositoryUrl,
-                        snapshot.getImagePath(),
+                        snapshot.getImageBytes() != null,
                         fileContents,
                         codeAiResults,
                         aiResults
                 );
 
-                String aiResponse = aiAnalysisClient.analyze(prompt);
+                String aiResponse = aiAnalysisClient.analyze(prompt, snapshot.getImageBytes());
 
                 List<WcagCheckResult> aiParsedResults = analysisPromptBuilder.parseAiResponse(
                         aiResponse,

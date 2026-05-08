@@ -9,6 +9,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 @Component
@@ -27,21 +29,32 @@ public class GeminiAnalysisClient implements AiAnalysisClient {
     private String apiKey;
 
     @Override
-    public String analyze(String prompt) {
+    public String analyze(String prompt, byte[] imageBytes) {
         RestClient restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .build();
 
         String optimizedPrompt = optimizePrompt(prompt);
 
+        List<GeminiRequest.Part> parts = new ArrayList<>();
+        parts.add(GeminiRequest.Part.builder()
+                .text(optimizedPrompt)
+                .build());
+
+        if (imageBytes != null && imageBytes.length > 0) {
+            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+            parts.add(GeminiRequest.Part.builder()
+                    .inlineData(GeminiRequest.InlineData.builder()
+                            .mimeType("image/png")
+                            .data(base64Image)
+                            .build())
+                    .build());
+        }
+
         GeminiRequest request = GeminiRequest.builder()
                 .contents(List.of(
                         GeminiRequest.Content.builder()
-                                .parts(List.of(
-                                        GeminiRequest.Part.builder()
-                                                .text(optimizedPrompt)
-                                                .build()
-                                ))
+                                .parts(parts)
                                 .build()
                 ))
                 .build();

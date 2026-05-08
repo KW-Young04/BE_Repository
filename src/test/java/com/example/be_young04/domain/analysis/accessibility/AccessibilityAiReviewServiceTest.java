@@ -13,7 +13,7 @@ class AccessibilityAiReviewServiceTest {
     @Test
     void reviewControlInputNameMapsPassResult() {
         AccessibilityAiReviewService service = new AccessibilityAiReviewService(
-                prompt -> "PASS: accessible name이 버튼 목적을 설명합니다."
+                (prompt, imageBytes) -> "PASS: accessible name이 버튼 목적을 설명합니다."
         );
 
         AccessibilityCheckResult result = service.reviewControlInputName(
@@ -30,7 +30,7 @@ class AccessibilityAiReviewServiceTest {
     @Test
     void reviewControlInputNameMapsFailResult() {
         AccessibilityAiReviewService service = new AccessibilityAiReviewService(
-                prompt -> "FAIL: name이 너무 모호합니다."
+                (prompt, imageBytes) -> "FAIL: name이 너무 모호합니다."
         );
 
         AccessibilityCheckResult result = service.reviewControlInputName(
@@ -72,7 +72,7 @@ class AccessibilityAiReviewServiceTest {
 
     private static class FailingAiClient implements AiAnalysisClient {
         @Override
-        public String analyze(String prompt) {
+        public String analyze(String prompt, byte[] imageBytes) {
             throw new AssertionError("AI should not be called");
         }
     }

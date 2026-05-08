@@ -4,7 +4,6 @@ import com.example.be_young04.domain.analysis.checker.WcagCheckResult;
 import com.example.be_young04.domain.analysis.checker.WcagCheckResult.JudgeType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,7 +17,7 @@ public class AnalysisPromptBuilder {
 
     public String build(
             String repositoryUrl,
-            String snapshotPath,
+            boolean hasSnapshot,
             Map<String, String> fileContents,
             List<WcagCheckResult> codeAiResults,
             List<WcagCheckResult> aiResults
@@ -33,10 +32,13 @@ public class AnalysisPromptBuilder {
                 [저장소 URL]
                 %s
 
-                [스냅샷 경로]
+                [스냅샷 바이트]
                 %s
 
-                """.formatted(repositoryUrl, snapshotPath));
+                """.formatted(
+                        repositoryUrl,
+                        hasSnapshot ? "[이미지 첨부됨 - 시각적 항목 판단에 활용하세요]" : "[스냅샷 없음 - 코드만으로 판단하세요]"
+                ));
 
         sb.append("[관련 파일 코드]\n");
         for (Map.Entry<String, String> entry : fileContents.entrySet()) {
