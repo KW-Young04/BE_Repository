@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 public class AccessibilityAnalysisService {
 
     private final AccessibilityAnalyzer accessibilityAnalyzer = new AccessibilityAnalyzer();
-    private final AccessibilityAiReviewService accessibilityAiReviewService;
 
     public AccessibilityCheckResult analyzeSc111(String code) {
         return accessibilityAnalyzer.analyzeSc111(code).get(0);
@@ -20,8 +19,7 @@ public class AccessibilityAnalysisService {
     }
 
     public AccessibilityCheckResult analyzeSc111ControlInput(String code) {
-        AccessibilityCheckResult staticResult = accessibilityAnalyzer.analyzeSc111ControlInput(code).get(0);
-        return accessibilityAiReviewService.reviewControlInputName(code, staticResult);
+        return accessibilityAnalyzer.analyzeSc111ControlInput(code).get(0);
     }
 
     public AccessibilityCheckResult analyzeSc121(String code) {

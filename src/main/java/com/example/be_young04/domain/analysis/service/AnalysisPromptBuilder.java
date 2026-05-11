@@ -1,80 +1,177 @@
 package com.example.be_young04.domain.analysis.service;
 
-import com.example.be_young04.domain.analysis.dto.CodeAnalysisResult;
-import com.example.be_young04.domain.snapshot.dto.SnapshotResponse;
+import com.example.be_young04.domain.analysis.checker.WcagCheckResult;
+import com.example.be_young04.domain.analysis.checker.WcagCheckResult.JudgeType;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @Component
 public class AnalysisPromptBuilder {
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     public String build(
             String repositoryUrl,
-            String deploymentUrl,
-            String fileName,
-            String code,
-            CodeAnalysisResult parsingResult,
-            SnapshotResponse snapshotResponse
+            boolean hasSnapshot,
+            Map<String, String> fileContents,
+            List<WcagCheckResult> codeAiResults,
+            List<WcagCheckResult> aiResults
     ) {
-        String safeCode = code == null ? "" : code;
+        StringBuilder sb = new StringBuilder();
 
-        if (safeCode.length() > 3000) {
-            safeCode = safeCode.substring(0, 3000);
-        }
-
-        return """
-                당신은 웹 프론트엔드 코드와 UI/UX를 분석하는 시니어 리뷰어입니다.
-                아래 저장소 정보, 코드 파싱 결과, 렌더링 스냅샷 정보를 바탕으로 분석 리포트를 작성하세요.
+        sb.append("""
+                당신은 웹 접근성(WCAG 2.2) 전문가입니다.
+                아래 저장소의 프론트엔드 코드를 분석하여 각 WCAG 항목의 위반 여부를 판단해주세요.
+                반드시 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
 
                 [저장소 URL]
                 %s
 
-                [배포 URL]
+                [스냅샷 바이트]
                 %s
 
-                [분석 파일명]
-                %s
-
-                [코드 파싱 결과]
-                - classes: %s
-                - methods/functions: %s
-                - imports: %s
-                - components: %s
-                - jsxElements: %s
-                - accessibilityChecks: %s
-                - lineCount: %d
-
-                [렌더링 스냅샷 정보]
-                - snapshotPath: %s
-                - viewport: %dx%d
-
-                [코드 일부]
-                ```jsx
-                %s
-                ```
-
-                반드시 아래 형식으로 한국어로 답변하세요.
-
-                1. 전체 요약
-                2. 코드 구조 분석
-                3. 컴포넌트/함수 역할 추정
-                4. UI/UX 관점 분석
-                5. 접근성 관점에서 개선할 점
-                6. 우선 수정 항목 3개
                 """.formatted(
-                repositoryUrl,
-                deploymentUrl,
-                fileName,
-                parsingResult.getClasses(),
-                parsingResult.getMethods(),
-                parsingResult.getImports(),
-                parsingResult.getComponents(),
-                parsingResult.getJsxElements(),
-                parsingResult.getAccessibilityChecks(),
-                parsingResult.getLineCount(),
-                snapshotResponse.getImagePath(),
-                snapshotResponse.getWidth(),
-                snapshotResponse.getHeight(),
-                safeCode
-        );
+                        repositoryUrl,
+                        hasSnapshot ? "[이미지 첨부됨 - 시각적 항목 판단에 활용하세요]" : "[스냅샷 없음 - 코드만으로 판단하세요]"
+                ));
+
+        sb.append("[관련 파일 코드]\n");
+        for (Map.Entry<String, String> entry : fileContents.entrySet()) {
+            sb.append("파일명: ").append(entry.getKey()).append("\n");
+            sb.append("```\n").append(truncate(entry.getValue())).append("\n```\n\n");
+        }
+
+        sb.append("[판단 요청 항목]\n");
+
+        for (WcagCheckResult result : codeAiResults) {
+            sb.append("""
+                    - wcagId: %s
+                      판단유형: CODE_AI (코드 분석 결과 있음, 추가 판단 필요)
+                      코드 분석 결과: %s
+                      추가 판단 요청: %s
+                    """.formatted(
+                    result.getWcagId(),
+                    result.getMessage(),
+                    result.getAiContext()
+            ));
+        }
+
+        for (WcagCheckResult result : aiResults) {
+            sb.append("""
+                    - wcagId: %s
+                      판단유형: AI (AI 전적 판단)
+                      판단 요청: %s
+                    """.formatted(
+                    result.getWcagId(),
+                    result.getAiContext()
+            ));
+        }
+
+        sb.append("""
+
+                [응답 형식 - JSON만 출력]
+                {
+                  "results": [
+                    {
+                      "wcagId": "1.1.1",
+                      "violated": true,
+                      "filePath": "위반 파일 경로 (없으면 null)",
+                      "violatedCode": "위반된 코드 스니펫 (없으면 null)",
+                      "cssSelector": "CSS 선택자 (없으면 null)",
+                      "componentName": "컴포넌트명 (없으면 null)",
+                      "message": "위반 이유 또는 판단 근거",
+                      "suggestion": "구체적인 수정 방법"
+                    }
+                  ]
+                }
+                """);
+
+        return sb.toString();
+    }
+
+    public List<WcagCheckResult> parseAiResponse(
+            String aiResponse,
+            List<WcagCheckResult> codeAiResults,
+            List<WcagCheckResult> aiResults
+    ) {
+        List<WcagCheckResult> parsed = new ArrayList<>();
+
+        try {
+            String clean = aiResponse
+                    .replaceAll("```json", "")
+                    .replaceAll("```", "")
+                    .trim();
+
+            JsonNode root = objectMapper.readTree(clean);
+            JsonNode resultsNode = root.get("results");
+
+            if (resultsNode == null || !resultsNode.isArray()) {
+                return fallback(codeAiResults, aiResults);
+            }
+
+            for (JsonNode node : resultsNode) {
+                JudgeType judgeType = findJudgeType(
+                        node.path("wcagId").asText(),
+                        codeAiResults,
+                        aiResults
+                );
+
+                parsed.add(WcagCheckResult.builder()
+                        .wcagId(node.path("wcagId").asText())
+                        .judgeType(judgeType)
+                        .violated(node.path("violated").asBoolean())
+                        .filePath(node.path("filePath").asText(null))
+                        .violatedCode(node.path("violatedCode").asText(null))
+                        .cssSelector(node.path("cssSelector").asText(null))
+                        .componentName(node.path("componentName").asText(null))
+                        .message(node.path("message").asText())
+                        .suggestion(node.path("suggestion").asText())
+                        .build());
+            }
+
+        } catch (Exception e) {
+            return fallback(codeAiResults, aiResults);
+        }
+
+        return parsed;
+    }
+
+    private JudgeType findJudgeType(
+            String wcagId,
+            List<WcagCheckResult> codeAiResults,
+            List<WcagCheckResult> aiResults
+    ) {
+        boolean isCodeAi = codeAiResults.stream()
+                .anyMatch(r -> r.getWcagId().equals(wcagId));
+        return isCodeAi ? JudgeType.CODE_AI : JudgeType.AI;
+    }
+
+    private List<WcagCheckResult> fallback(
+            List<WcagCheckResult> codeAiResults,
+            List<WcagCheckResult> aiResults
+    ) {
+        List<WcagCheckResult> all = new ArrayList<>();
+        all.addAll(codeAiResults);
+        all.addAll(aiResults);
+        return all.stream()
+                .map(r -> WcagCheckResult.builder()
+                        .wcagId(r.getWcagId())
+                        .judgeType(r.getJudgeType())
+                        .violated(null)
+                        .message("AI 응답 파싱 실패")
+                        .build())
+                .toList();
+    }
+
+    private String truncate(String content) {
+        if (content == null) return "";
+        return content.length() > 3000
+                ? content.substring(0, 3000) + "\n...[생략]"
+                : content;
     }
 }

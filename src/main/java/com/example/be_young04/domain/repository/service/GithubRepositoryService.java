@@ -71,6 +71,22 @@ public class GithubRepositoryService {
                 .build();
     }
 
+    public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
+        RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+
+        GithubRepositoryResponse response = githubRestClient.get()
+                .uri("/repos/{owner}/{repo}",
+                        repositoryInfo.getOwner(), repositoryInfo.getRepo())
+                .retrieve()
+                .body(GithubRepositoryResponse.class);
+
+        if (response == null) {
+                throw new IllegalStateException("저장소 정보를 불러오지 못했습니다.");
+        }
+
+        return response;
+        }
+
     private String decodeBase64Content(String content) {
         if (content == null || content.isBlank()) {
             return "";

@@ -2,6 +2,9 @@ package com.example.be_young04.global.config;
 
 import com.example.be_young04.domain.auth.oauth.CustomOAuth2UserService;
 import com.example.be_young04.domain.auth.oauth.OAuth2LoginSuccessHandler;
+import com.example.be_young04.global.jwt.JwtAuthenticationFilter;
+
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.util.List;
 
@@ -20,6 +24,7 @@ public class SecurityConfig {
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -58,6 +63,8 @@ public class SecurityConfig {
                         .successHandler(oAuth2LoginSuccessHandler)
                 )
 
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                
                 // H2 콘솔 iframe 허용
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
