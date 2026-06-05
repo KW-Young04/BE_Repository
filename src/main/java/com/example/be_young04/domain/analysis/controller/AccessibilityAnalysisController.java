@@ -51,16 +51,120 @@ public class AccessibilityAnalysisController {
             description = "\uC0AC\uC804\uB179\uC74C audio \uD0DC\uADF8\uC758 track \uD0DC\uADF8 \uB610\uB294 \uC778\uC811\uD55C \uD14D\uC2A4\uD2B8 \uB300\uBCF8 \uB9C1\uD06C \uC874\uC7AC \uC5EC\uBD80\uB97C \uC815\uC801 \uBD84\uC11D\uD569\uB2C8\uB2E4."
     )
     @PostMapping("/sc-1-2-1/audio-only-prerecorded")
-    public AccessibilityCheckResult analyzeSc121(@RequestBody CodeAnalyzeRequest request) {
-        return accessibilityAnalysisService.analyzeSc121(request.getCode());
+    public AccessibilityCheckResult analyzeSc121Audio(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc121Audio(request.getCode());
     }
 
-    @Operation(
-            summary = "1.2.1 \uBE44\uB514\uC624 \uC804\uC6A9 \uC811\uADFC\uC131 \uC815\uC801 \uAC80\uC0AC",
-            description = "\uC0AC\uC804\uB179\uC74C video \uD0DC\uADF8\uC758 track kind=\"descriptions\" \uB610\uB294 \uC778\uC811\uD55C \uD14D\uC2A4\uD2B8 \uB300\uBCF8 \uB9C1\uD06C \uC874\uC7AC \uC5EC\uBD80\uB97C \uC815\uC801 \uBD84\uC11D\uD569\uB2C8\uB2E4."
-    )
     @PostMapping("/sc-1-2-1/video-only-prerecorded")
     public AccessibilityCheckResult analyzeSc121VideoOnly(@RequestBody CodeAnalyzeRequest request) {
         return accessibilityAnalysisService.analyzeSc121VideoOnly(request.getCode());
+    }
+
+    @Operation(summary = "1.2.2 자막 제공 (사전녹음)")
+    @PostMapping("/sc-1-2-2")
+    public AccessibilityCheckResult analyzeSc122(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc122(request.getCode());
+    }
+
+    @Operation(summary = "1.2.3 음성 해설 또는 미디어 대안 (사전녹음)")
+    @PostMapping("/sc-1-2-3")
+    public AccessibilityCheckResult analyzeSc123(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc123(request.getCode());
+    }
+
+    @Operation(summary = "1.3.1 정보와 관계 (구조적 마크업)")
+    @PostMapping("/sc-1-3-1")
+    public AccessibilityCheckResult analyzeSc131(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc131(request.getCode());
+    }
+
+    @Operation(summary = "1.4.1 색상 사용 - 색상 인식 전용")
+    @PostMapping("/sc-1-4-1")
+    public AccessibilityCheckResult analyzeSc141(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc141(request.getCode());
+    }
+
+    @Operation(summary = "1.4.2 오디오 제어 - 비간섭 요건")
+    @PostMapping("/sc-1-4-2")
+    public AccessibilityCheckResult analyzeSc142(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc142(request.getCode());
+    }
+
+    @Operation(summary = "2.1.2 키보드 트랩 없음")
+    @PostMapping("/sc-2-1-2")
+    public AccessibilityCheckResult analyzeSc212(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc212(request.getCode());
+    }
+
+    @Operation(summary = "2.2.1 타이밍 조정")
+    @PostMapping("/sc-2-2-1")
+    public AccessibilityCheckResult analyzeSc221(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc221(request.getCode());
+    }
+
+    @Operation(summary = "2.2.2 일시정지/정지/숨기기 - 자동 업데이트")
+    @PostMapping("/sc-2-2-2")
+    public AccessibilityCheckResult analyzeSc222(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc222(request.getCode());
+    }
+
+    @Operation(summary = "2.3.1 세 번 이하 점멸")
+    @PostMapping("/sc-2-3-1")
+    public AccessibilityCheckResult analyzeSc231(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc231(request.getCode());
+    }
+
+    @Operation(summary = "2.4.1 블록 건너뛰기")
+    @PostMapping("/sc-2-4-1")
+    public AccessibilityCheckResult analyzeSc241(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc241(request.getCode());
+    }
+
+    @Operation(summary = "2.4.2 페이지 제목")
+    @PostMapping("/sc-2-4-2")
+    public AccessibilityCheckResult analyzeSc242(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc242(request.getCode());
+    }
+
+    @Operation(summary = "2.4.3 포커스 순서")
+    @PostMapping("/sc-2-4-3")
+    public AccessibilityCheckResult analyzeSc243(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc243(request.getCode());
+    }
+
+    @Operation(summary = "3.1.1 페이지 언어")
+    @PostMapping("/sc-3-1-1")
+    public AccessibilityCheckResult analyzeSc311(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc311(request.getCode());
+    }
+
+    @Operation(summary = "3.2.1 포커스 시 변경 없음")
+    @PostMapping("/sc-3-2-1")
+    public AccessibilityCheckResult analyzeSc321(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc321(request.getCode());
+    }
+
+    @Operation(summary = "3.2.2 입력 시 변경 없음")
+    @PostMapping("/sc-3-2-2")
+    public AccessibilityCheckResult analyzeSc322(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc322(request.getCode());
+    }
+
+    @Operation(summary = "3.3.1 오류 식별")
+    @PostMapping("/sc-3-3-1")
+    public AccessibilityCheckResult analyzeSc331(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc331(request.getCode());
+    }
+
+    @Operation(summary = "3.3.2 레이블 또는 설명")
+    @PostMapping("/sc-3-3-2")
+    public AccessibilityCheckResult analyzeSc332(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc332(request.getCode());
+    }
+
+    @Operation(summary = "4.1.2 이름·역할·값")
+    @PostMapping("/sc-4-1-2")
+    public AccessibilityCheckResult analyzeSc412(@RequestBody CodeAnalyzeRequest request) {
+        return accessibilityAnalysisService.analyzeSc412(request.getCode());
     }
 }
