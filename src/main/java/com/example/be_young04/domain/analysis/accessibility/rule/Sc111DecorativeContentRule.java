@@ -71,10 +71,12 @@ public class Sc111DecorativeContentRule implements AccessibilityRule {
     }
 
     private AccessibilityIssue buildIssue(String type, String message, String code, int startIndex, String snippet) {
+        int lineNumber = calculateLineNumber(code, startIndex);
         return AccessibilityIssue.builder()
-                .type(type)
+                .code(type)
                 .message(message)
-                .line(calculateLineNumber(code, startIndex))
+                .startLine(lineNumber)
+                .endLine(lineNumber)
                 .snippet(normalizeSnippet(snippet))
                 .build();
     }
