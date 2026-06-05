@@ -13,5 +13,7 @@ public class CodeAnalysisResult {
     private List<String> imports;
     private List<String> components;
     private List<String> jsxElements;
+    private List<String> accessibilityIssues;
+    private List<AccessibilityCheckResult> accessibilityChecks;
     private int lineCount;
 }

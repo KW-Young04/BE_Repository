@@ -22,6 +22,8 @@ public class JavaCodeParser implements CodeParser {
                 .imports(imports)
                 .components(List.of())
                 .jsxElements(List.of())
+                .accessibilityIssues(List.of())
+                .accessibilityChecks(List.of())
                 .lineCount(lineCount)
                 .build();
     }
