@@ -21,5 +21,13 @@ public class GeminiRequest {
     @Builder
     public static class Part {
         private String text;
+        private InlineData inlineData;
+    }
+
+    @Getter
+    @Builder
+    public static class InlineData {
+        private String mimeType;
+        private String data;
     }
 }

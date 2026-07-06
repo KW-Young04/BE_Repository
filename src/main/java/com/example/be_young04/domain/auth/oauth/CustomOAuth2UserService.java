@@ -1,7 +1,7 @@
 package com.example.be_young04.domain.auth.oauth;
 
-import com.example.be_young04.domain.user.entity.User;
-import com.example.be_young04.domain.user.service.UserService;
+import com.example.be_young04.domain.user.entity.GithubUser;
+import com.example.be_young04.domain.user.service.GithubUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
-    private final UserService userService;
+    private final GithubUserService githubUserService;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -27,22 +27,22 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             throw new OAuth2AuthenticationException("지원하지 않는 OAuth 제공자입니다.");
         }
 
-        OAuthAttributes attributes = OAuthAttributes.ofGithub(oauth2User.getAttributes());
+        Long githubId = Long.valueOf(String.valueOf(oauth2User.getAttributes().get("id")));
+        String username = (String) oauth2User.getAttributes().get("login");
+        String profileImageUrl = (String) oauth2User.getAttributes().get("avatar_url");
+        String accessToken = userRequest.getAccessToken().getTokenValue();
 
-        User user = userService.saveOrUpdateGithubUser(
-                attributes.getProvider(),
-                attributes.getProviderId(),
-                attributes.getLoginId(),
-                attributes.getName(),
-                attributes.getEmail(),
-                attributes.getProfileImageUrl()
+        GithubUser githubUser = githubUserService.saveOrUpdate(
+                githubId,
+                username,
+                profileImageUrl,
+                accessToken
         );
 
         return new CustomOAuth2User(
-                user.getId(),
-                user.getLoginId(),
-                user.getRole(),
-                attributes.getAttributes()
+                githubUser.getGithubId(),
+                githubUser.getUsername(),
+                oauth2User.getAttributes()
         );
     }
 }

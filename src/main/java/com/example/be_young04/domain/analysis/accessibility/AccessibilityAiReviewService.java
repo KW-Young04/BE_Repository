@@ -17,7 +17,7 @@ public class AccessibilityAiReviewService {
         }
 
         try {
-            String aiResult = aiAnalysisClient.analyze(buildControlInputNamePrompt(code));
+            String aiResult = aiAnalysisClient.analyze(buildControlInputNamePrompt(code), null);
             String aiStatus = extractAiStatus(aiResult);
 
             return copyWithAiReview(

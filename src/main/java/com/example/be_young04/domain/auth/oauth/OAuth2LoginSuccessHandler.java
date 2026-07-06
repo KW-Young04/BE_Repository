@@ -31,9 +31,8 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         CustomOAuth2User user = (CustomOAuth2User) authentication.getPrincipal();
 
         String accessToken = jwtTokenProvider.createAccessToken(
-                user.getUserId(),
-                user.getLoginId(),
-                user.getRole().name()
+                user.getGithubId(),
+                user.getUsername()
         );
 
         response.sendRedirect(

@@ -6,8 +6,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class SnapshotResponse {
-    private String deploymentUrl;
-    private String imagePath;
+    private byte[] imageBytes;
     private int width;
     private int height;
 }

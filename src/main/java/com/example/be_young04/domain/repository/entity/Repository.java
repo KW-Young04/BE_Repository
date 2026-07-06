@@ -1,52 +1,65 @@
 package com.example.be_young04.domain.repository.entity;
 
-import com.example.be_young04.domain.user.entity.User;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-/**
- * 사용자가 연결한 GitHub Repository 정보
- */
 @Entity
+@Table(name = "REPOSITORIES")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
-@Builder
-@Table(name = "repositories", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"github_id", "owner_name", "repository_name"})
-})
+@NoArgsConstructor
 public class Repository {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "REPOSITORY_ID", nullable = false)
     private Long repositoryId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "github_id", nullable = false)
-    private User user;
+    @Column(name = "GITHUB_ID", nullable = false)
+    private Long githubId;
 
-    @Column(nullable = false)
+    @Column(name = "OWNER_NAME", nullable = false)
     private String ownerName;
 
-    @Column(nullable = false)
+    @Column(name = "REPOSITORY_NAME", nullable = false)
     private String repositoryName;
 
-    @Column(nullable = false)
-    private Boolean isPrivate = false;
+    @Column(name = "DEFAULT_BRANCH", nullable = false)
+    private String defaultBranch;
 
+    @Column(name = "REPOSITORY_URL", nullable = false)
+    private String repositoryUrl;
+
+    @Column(name = "IS_PRIVATE", nullable = false)
+    private boolean isPrivate;
+
+    @Column(name = "LAST_SYNCED_AT")
     private LocalDateTime lastSyncedAt;
 
-    @CreationTimestamp
+    @Column(name = "CREATED_AT")
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
+    @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
 
-    public String getRepositoryUrl() {
-        return String.format("https://github.com/%s/%s", ownerName, repositoryName);
+    @Builder
+    public Repository(Long repositoryId, Long githubId, String ownerName, String repositoryName,
+                      String defaultBranch, String repositoryUrl, boolean isPrivate) {
+        this.repositoryId = repositoryId;
+        this.githubId = githubId;
+        this.ownerName = ownerName;
+        this.repositoryName = repositoryName;
+        this.defaultBranch = defaultBranch;
+        this.repositoryUrl = repositoryUrl;
+        this.isPrivate = isPrivate;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateLastSyncedAt() {
+        this.lastSyncedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 }

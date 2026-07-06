@@ -58,6 +58,9 @@ dependencies {
 
     // Playwright (Java)
     implementation 'com.microsoft.playwright:playwright:1.45.0'
+
+    // ObjectMapper
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
 }
 
 tasks.named('test') {

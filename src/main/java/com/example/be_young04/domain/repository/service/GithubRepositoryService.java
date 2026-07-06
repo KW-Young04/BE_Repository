@@ -1,5 +1,6 @@
 package com.example.be_young04.domain.repository.service;
 
+import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
 import com.example.be_young04.domain.repository.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ public class GithubRepositoryService {
 
     private final RestClient githubRestClient;
     private final GithubUrlParser githubUrlParser;
+    private final GithubRepositoryClient githubRepositoryClient;
 
     public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
@@ -71,6 +73,12 @@ public class GithubRepositoryService {
                 .build();
     }
 
+    public List<GithubRepositoryResponse> getRecentRepositories(String accessToken) {
+
+        return githubRepositoryClient.getRecentRepositories(accessToken);
+
+    }
+
     private String decodeBase64Content(String content) {
         if (content == null || content.isBlank()) {
             return "";
@@ -79,5 +87,9 @@ public class GithubRepositoryService {
         String normalized = content.replace("\n", "");
         byte[] decoded = Base64.getDecoder().decode(normalized);
         return new String(decoded, StandardCharsets.UTF_8);
+    }
+
+    public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
+        return null;
     }
 }
