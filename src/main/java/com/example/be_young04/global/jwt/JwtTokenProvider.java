@@ -26,17 +26,40 @@ public class JwtTokenProvider {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createAccessToken(Long userId, String loginId, String role) {
+    public String createAccessToken(Long githubId, String username) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenExpiration);
 
         return Jwts.builder()
-                .subject(String.valueOf(userId))
-                .claim("loginId", loginId)
-                .claim("role", role)
+                .subject(String.valueOf(githubId))
+                .claim("username", username)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
                 .compact();
     }
+
+    
+    public Long getGithubId(String token) {
+        return Long.valueOf(
+                Jwts.parser()
+                        .verifyWith(secretKey)
+                        .build()
+                        .parseSignedClaims(token)
+                        .getPayload()
+                        .getSubject()
+        );
+        }
+
+        public boolean validateToken(String token) {
+        try {
+                Jwts.parser()
+                        .verifyWith(secretKey)
+                        .build()
+                        .parseSignedClaims(token);
+                return true;
+        } catch (Exception e) {
+                return false;
+        }
+        }
 }
