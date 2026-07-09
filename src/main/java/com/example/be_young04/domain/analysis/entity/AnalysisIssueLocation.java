@@ -24,14 +24,26 @@ public class AnalysisIssueLocation {
     @Column(name = "TARGET_FILE_PATH", nullable = false)
     private String targetFilePath;
 
+    @Column(name = "TARGET_SELECTOR")
+    private String targetSelector;
+
     @Column(name = "ORIGINAL_CODE_BLOCK", nullable = false, columnDefinition = "TEXT")
     private String originalCodeBlock;
 
-    @Column(name = "CSS_SELECTOR")
-    private String cssSelector;
+    @Column(name = "SUGGESTION", nullable = false, columnDefinition = "TEXT")
+    private String suggestion;
 
-    @Column(name = "COMPONENT_NAME")
-    private String componentName;
+    @Column(name = "MEASURED_VALUE", length = 50)
+    private String measuredValue;
+
+    @Column(name = "THRESHOLD_VALUE", length = 50)
+    private String thresholdValue;
+
+    @Column(name = "SUGGESTION_TYPE")
+    private String suggestionType; // COLOR_CONTRAST, CODE_FIX, ATTRIBUTE, LAYOUT, TEXT
+
+    @Column(name = "SUGGESTION_DETAIL", columnDefinition = "JSON")
+    private String suggestionDetail;
 
     @Column(name = "STATUS", nullable = false)
     private String status; // OPEN, MODIFY, COMPLETE
@@ -43,14 +55,18 @@ public class AnalysisIssueLocation {
     private LocalDateTime updatedAt;
 
     @Builder
-    public AnalysisIssueLocation(Long analysisIssueId, String targetFilePath,
-                                  String originalCodeBlock, String cssSelector,
-                                  String componentName) {
+    public AnalysisIssueLocation(Long analysisIssueId, String targetFilePath, String targetSelector,
+                                  String originalCodeBlock, String suggestion, String measuredValue,
+                                  String thresholdValue, String suggestionType, String suggestionDetail) {
         this.analysisIssueId = analysisIssueId;
         this.targetFilePath = targetFilePath;
+        this.targetSelector = targetSelector;
         this.originalCodeBlock = originalCodeBlock;
-        this.cssSelector = cssSelector;
-        this.componentName = componentName;
+        this.suggestion = suggestion;
+        this.measuredValue = measuredValue;
+        this.thresholdValue = thresholdValue;
+        this.suggestionType = suggestionType;
+        this.suggestionDetail = suggestionDetail;
         this.status = "OPEN";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
