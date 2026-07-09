@@ -18,23 +18,8 @@ public class AnalysisIssue {
     @Column(name = "ANALYSIS_ISSUE_ID")
     private Long analysisIssueId;
 
-    @Column(name = "ANALYSIS_RESULT_ID", nullable = false)
-    private Long analysisResultId;
-
-    @Column(name = "ISSUE_TYPE", nullable = false)
-    private String issueType;
-
-    @Column(name = "LEVEL_TYPE", nullable = false)
-    private String levelType;
-
-    @Column(name = "TITLE", nullable = false)
-    private String title;
-
-    @Column(name = "DESCRIPTION", nullable = false, columnDefinition = "TEXT")
-    private String description;
-
-    @Column(name = "SUGGESTION", nullable = false, columnDefinition = "TEXT")
-    private String suggestion;
+    @Column(name = "ANALYSIS_WCAG_RESULT_ID", nullable = false)
+    private Long analysisWcagResultId;
 
     @Column(name = "STATUS", nullable = false)
     private String status; // OPEN, PROGRESS, COMPLETE, IGNORE
@@ -46,14 +31,8 @@ public class AnalysisIssue {
     private LocalDateTime updatedAt;
 
     @Builder
-    public AnalysisIssue(Long analysisResultId, String issueType, String levelType,
-                         String title, String description, String suggestion) {
-        this.analysisResultId = analysisResultId;
-        this.issueType = issueType;
-        this.levelType = levelType;
-        this.title = title;
-        this.description = description;
-        this.suggestion = suggestion;
+    public AnalysisIssue(Long analysisWcagResultId) {
+        this.analysisWcagResultId = analysisWcagResultId;
         this.status = "OPEN";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
