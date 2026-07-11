@@ -29,9 +29,6 @@ public class Repository {
     @Column(name = "DEFAULT_BRANCH", nullable = false)
     private String defaultBranch;
 
-    @Column(name = "REPOSITORY_URL", nullable = false)
-    private String repositoryUrl;
-
     @Column(name = "IS_PRIVATE", nullable = false)
     private boolean isPrivate;
 
@@ -46,13 +43,12 @@ public class Repository {
 
     @Builder
     public Repository(Long repositoryId, Long githubId, String ownerName, String repositoryName,
-                      String defaultBranch, String repositoryUrl, boolean isPrivate) {
+                      String defaultBranch, boolean isPrivate) {
         this.repositoryId = repositoryId;
         this.githubId = githubId;
         this.ownerName = ownerName;
         this.repositoryName = repositoryName;
         this.defaultBranch = defaultBranch;
-        this.repositoryUrl = repositoryUrl;
         this.isPrivate = isPrivate;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
