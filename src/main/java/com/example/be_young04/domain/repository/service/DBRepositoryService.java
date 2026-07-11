@@ -17,23 +17,25 @@ public class DBRepositoryService {
 
     @Transactional
     public Repository getOrCreate(Long githubId, String repositoryUrl) {
-        return repositoryRepository.findByRepositoryUrl(repositoryUrl)
-            .orElseGet(() -> {
-                GithubRepositoryResponse info = githubRepositoryService
-                        .getRepositoryInfo(repositoryUrl);
-                var repoInfo = githubUrlParser.parse(repositoryUrl);
+        var repoInfo = githubUrlParser.parse(repositoryUrl);
 
-                Repository newRepo = Repository.builder()
-                        .repositoryId(info.getId())
-                        .githubId(githubId)
-                        .ownerName(repoInfo.getOwner())
-                        .repositoryName(repoInfo.getRepo())
-                        .defaultBranch(info.getDefaultBranch())
-                        .repositoryUrl(repositoryUrl)
-                        .isPrivate(info.isPrivateRepo())
-                        .build();
+        return repositoryRepository
+                .findByGithubIdAndOwnerNameAndRepositoryName(
+                        githubId, repoInfo.getOwner(), repoInfo.getRepo())
+                .orElseGet(() -> {
+                    GithubRepositoryResponse info = githubRepositoryService
+                            .getRepositoryInfo(repositoryUrl);
 
-                return repositoryRepository.save(newRepo);
-            });
+                    Repository newRepo = Repository.builder()
+                            .repositoryId(info.getId())
+                            .githubId(githubId)
+                            .ownerName(repoInfo.getOwner())
+                            .repositoryName(repoInfo.getRepo())
+                            .defaultBranch(info.getDefaultBranch())
+                            .isPrivate(info.isPrivateRepo())
+                            .build();
+
+                    return repositoryRepository.save(newRepo);
+                });
     }
 }

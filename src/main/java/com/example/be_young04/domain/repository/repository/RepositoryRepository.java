@@ -7,5 +7,6 @@ import java.util.Optional;
 
 public interface RepositoryRepository extends JpaRepository<Repository, Long> {
 
-    Optional<Repository> findByRepositoryUrl(String repositoryUrl);
+    Optional<Repository> findByGithubIdAndOwnerNameAndRepositoryName(
+            Long githubId, String ownerName, String repositoryName);
 }
