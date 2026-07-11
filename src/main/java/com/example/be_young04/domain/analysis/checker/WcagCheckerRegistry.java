@@ -1,16 +1,20 @@
 package com.example.be_young04.domain.analysis.checker;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
-@RequiredArgsConstructor
 public class WcagCheckerRegistry {
 
-    // Spring이 WcagChecker 구현체들을 자동으로 주입해줌
     private final List<WcagChecker> checkers;
+
+    // Spring이 주입하는 WcagChecker 빈 목록 + AccessibilityRule 어댑터 목록을 합쳐서 관리
+    public WcagCheckerRegistry(List<WcagChecker> checkers) {
+        this.checkers = new ArrayList<>(checkers);
+        this.checkers.addAll(AccessibilityRuleCheckerFactory.createAll());
+    }
 
     // 특정 파일에 적용 가능한 체커 목록 반환
     public List<WcagChecker> getCheckersFor(String fileName) {

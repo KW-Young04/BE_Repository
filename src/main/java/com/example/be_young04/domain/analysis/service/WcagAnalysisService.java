@@ -122,49 +122,50 @@ public class WcagAnalysisService {
         }
 
         // Stage 5 — 재분석 정책: 기존 결과 삭제 후 재생성
-        analysisWcagResultRepository.deleteByRepositoryId(repositoryId);
+analysisWcagResultRepository.deleteByRepositoryId(repositoryId);
 
-        for (WcagCheckResult result : finalResults) {
-            WcagItem wcagItem = resolveWcagItem(result.getWcagId());
-            if (wcagItem == null) continue; // 매칭되는 WCAG_ITEM 없으면 스킵
+for (WcagCheckResult result : finalResults) {
+    WcagItem wcagItem = resolveWcagItem(result.getWcagItemId());
+    if (wcagItem == null) continue; // 매칭되는 WCAG_ITEM 없으면 스킵
 
-            String status = result.getViolated() == null ? "NA"
-                    : (result.getViolated() ? "FAIL" : "PASS");
+    String status = result.getViolated() == null ? "NA"
+            : (result.getViolated() ? "FAIL" : "PASS");
 
-            AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
-                    AnalysisWcagResult.builder()
-                            .repositoryId(repositoryId)
-                            .wcagItemId(wcagItem.getWcagItemId())
-                            .status(status)
-                            .build()
-            );
+    AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
+            AnalysisWcagResult.builder()
+                    .repositoryId(repositoryId)
+                    .wcagItemId(wcagItem.getWcagItemId())
+                    .status(status)
+                    .build()
+    );
 
-            if (!"FAIL".equals(status)) continue;
+    if (!"FAIL".equals(status)) continue;
 
-            AnalysisIssue issue = analysisIssueRepository.save(
-                    AnalysisIssue.builder()
-                            .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
-                            .build()
-            );
+    AnalysisIssue issue = analysisIssueRepository.save(
+            AnalysisIssue.builder()
+                    .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
+                    .build()
+    );
 
-            if (result.getFilePath() != null) {
-                analysisIssueLocationRepository.save(
-                        AnalysisIssueLocation.builder()
-                                .analysisIssueId(issue.getAnalysisIssueId())
-                                .targetFilePath(result.getFilePath())
-                                .targetSelector(result.getCssSelector())
-                                .originalCodeBlock(result.getViolatedCode() != null ? result.getViolatedCode() : "")
-                                .suggestion(result.getSuggestion() != null ? result.getSuggestion() : "")
-                                .build()
-                );
-            }
-        }
-
-        return repositoryId;
+    for (WcagCheckResult.IssueLocation loc : result.getLocations()) {
+        analysisIssueLocationRepository.save(
+                AnalysisIssueLocation.builder()
+                        .analysisIssueId(issue.getAnalysisIssueId())
+                        .targetFilePath(result.getFilePath())
+                        .targetSelector(loc.getCssSelector())
+                        .originalCodeBlock(loc.getViolatedCode() != null ? loc.getViolatedCode() : "")
+                        .suggestion(loc.getSuggestion() != null ? loc.getSuggestion() : "")
+                        .build()
+        );
     }
+}
 
-    // TODO: checker → WCAG_ITEM 매핑은 임시 처리 (SC 첫 매칭). 어댑터 패턴 작업(별도 이슈)에서 정교화 예정
-    private WcagItem resolveWcagItem(String sc) {
-        return wcagItemRepository.findBySc(sc).stream().findFirst().orElse(null);
-    }
+return repositoryId;
+}
+
+// SC 첫 매칭 임시 로직 제거 → 어댑터가 채운 고정 PK로 직접 조회
+private WcagItem resolveWcagItem(Long wcagItemId) {
+    if (wcagItemId == null) return null;
+    return wcagItemRepository.findById(wcagItemId).orElse(null);
+}
 }
