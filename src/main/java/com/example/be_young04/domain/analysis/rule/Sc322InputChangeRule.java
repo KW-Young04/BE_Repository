@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -29,6 +29,7 @@ public class Sc322InputChangeRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("onchange 이벤트에 즉시 form submit·페이지 이동 패턴을 감지합니다.")
                 .status(issues.isEmpty() ? "PASS" : "WARN")
+                .defaultSuggestion("onChange에서 즉시 제출/이동하지 말고, 사전에 안내하거나 확인 절차를 두세요.")
                 .issues(issues)
                 .build();
     }
@@ -59,5 +60,10 @@ public class Sc322InputChangeRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(67L);
     }
 }

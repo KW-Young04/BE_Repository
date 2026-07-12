@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -29,6 +29,7 @@ public class Sc321FocusChangeRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("focus 이벤트에 페이지 이동·팝업 열기 등 컨텍스트 변경 코드 패턴을 감지합니다.")
                 .status(issues.isEmpty() ? "PASS" : "WARN")
+                .defaultSuggestion("onFocus 이벤트에서 페이지 이동이나 팝업이 자동으로 열리지 않도록 하세요.")
                 .issues(issues)
                 .build();
     }
@@ -59,5 +60,10 @@ public class Sc321FocusChangeRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(66L);
     }
 }

@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -32,6 +32,7 @@ public class Sc311PageLanguageRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("html 요소의 lang 속성 존재 여부와 유효한 BCP 47 언어 코드 여부를 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("<html> 태그에 lang=\"ko\" 같은 유효한 언어 코드를 지정하세요.")
                 .issues(issues)
                 .build();
     }
@@ -68,5 +69,15 @@ public class Sc311PageLanguageRule implements AccessibilityRule {
     private boolean isValidLanguageCode(String code) {
         // BCP 47 기본 언어 코드 검증 (en, ko, ja, zh 등)
         return Pattern.compile("^[a-z]{2}(?:-[a-z]{2})?$", Pattern.CASE_INSENSITIVE).matcher(code).matches();
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(64L);
+    }
+
+    @Override
+    public boolean isRootDocumentOnly() {
+        return true;
     }
 }

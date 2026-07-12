@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -29,6 +29,7 @@ public class Sc332LabelDescriptionRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("input 요소에 label·placeholder·aria-label·aria-describedby 존재 여부를 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("input/textarea/select 요소에 label, aria-label, placeholder 중 하나를 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -84,5 +85,10 @@ public class Sc332LabelDescriptionRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(75L);
     }
 }

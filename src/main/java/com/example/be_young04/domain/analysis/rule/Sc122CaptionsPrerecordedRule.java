@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -33,6 +33,7 @@ public class Sc122CaptionsPrerecordedRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("video 태그 내 track[kind=captions] 존재 여부를 검사합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("video 태그 내부에 kind=\"captions\" track을 추가해 자막을 제공하세요.")
                 .issues(issues)
                 .build();
     }
@@ -57,5 +58,10 @@ public class Sc122CaptionsPrerecordedRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(9L);
     }
 }

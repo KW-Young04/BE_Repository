@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -40,6 +40,7 @@ public class Sc111ControlInputNameRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? (aiReviewRequired ? "NEEDS_AI_REVIEW" : "PASS") : "FAIL")
                 .aiReviewRequired(aiReviewRequired)
                 .aiReviewGuide(aiReviewRequired ? "\uC874\uC7AC\uD558\uB294 accessible name\uC774 \uCEE8\uD2B8\uB864\uC758 \uBAA9\uC801\uC744 \uAD6C\uCCB4\uC801\uC73C\uB85C \uC124\uBA85\uD558\uB294\uC9C0 AI\uB85C \uAC80\uD1A0\uD574\uC57C \uD569\uB2C8\uB2E4." : null)
+                .defaultSuggestion("컨트롤 역할을 하는 이미지나 svg에 aria-label 또는 title로 목적을 설명하는 이름을 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -149,6 +150,11 @@ public class Sc111ControlInputNameRule implements AccessibilityRule {
             return normalized.substring(0, 180) + "...";
         }
         return normalized;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(3L);
     }
 
     private record AnalysisCounter(int namedControlCount) {

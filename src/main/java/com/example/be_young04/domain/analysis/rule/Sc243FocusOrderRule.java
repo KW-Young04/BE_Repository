@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -31,6 +31,7 @@ public class Sc243FocusOrderRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("포커스 순서의 논리적 적절성은 AI 분석이 필요합니다.")
+                .defaultSuggestion("양수 tabindex 사용을 피하고, DOM 순서만으로 논리적인 포커스 흐름이 되도록 하세요.")
                 .issues(issues)
                 .build();
     }
@@ -62,5 +63,10 @@ public class Sc243FocusOrderRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(52L);
     }
 }

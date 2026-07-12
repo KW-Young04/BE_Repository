@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -29,6 +29,7 @@ public class Sc231BlinkingRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("CSS animation과 @keyframes에서 점멸 빈도를 분석합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("1초에 3회를 초과하는 점멸 애니메이션의 속도를 늦추거나 제거하세요.")
                 .issues(issues)
                 .build();
     }
@@ -62,5 +63,10 @@ public class Sc231BlinkingRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(48L);
     }
 }

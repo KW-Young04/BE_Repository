@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -30,6 +30,7 @@ public class Sc111DecorativeContentRule implements AccessibilityRule {
                 .implementationMethod("\uC815\uC801 \uBD84\uC11D")
                 .implementationDescription("\uC7A5\uC2DD \uC774\uBBF8\uC9C0\uAC00 alt=\"\" \uB610\uB294 role=\"presentation\"/role=\"none\"\uC73C\uB85C \uBCF4\uC870 \uAE30\uC220\uC5D0\uC11C \uBB34\uC2DC\uB418\uB294\uC9C0 \uAC80\uC0AC\uD55C\uB2E4.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("장식용 이미지에는 alt=\"\" 또는 role=\"presentation\"을 추가해 스크린 리더가 무시하도록 하세요.")
                 .issues(issues)
                 .build();
     }
@@ -107,5 +108,10 @@ public class Sc111DecorativeContentRule implements AccessibilityRule {
             }
         }
         return null;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(2L);
     }
 }

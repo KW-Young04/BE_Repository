@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -31,6 +31,7 @@ public class Sc212KeyboardTrapRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("실제 키보드 트랩 여부는 AI 분석이 필요합니다.")
+                .defaultSuggestion("tabindex 순환 구조를 점검하고 키보드로 포커스를 빠져나올 수 있는 경로를 확인하세요.")
                 .issues(issues)
                 .build();
     }
@@ -53,5 +54,10 @@ public class Sc212KeyboardTrapRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(36L);
     }
 }

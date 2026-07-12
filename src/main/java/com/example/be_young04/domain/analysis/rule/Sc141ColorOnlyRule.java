@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.accessibility.rule;
+package com.example.be_young04.domain.analysis.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
 import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
@@ -31,6 +31,7 @@ public class Sc141ColorOnlyRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("색상만으로 정보를 전달하는지는 AI 분석이 필요합니다.")
+                .defaultSuggestion("색상 외에 아이콘, 텍스트, 밑줄 등 시각적 대체 수단을 함께 제공하세요.")
                 .issues(issues)
                 .build();
     }
@@ -52,5 +53,10 @@ public class Sc141ColorOnlyRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(18L);
     }
 }
