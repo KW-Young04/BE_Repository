@@ -4,6 +4,7 @@ import com.example.be_young04.domain.analysis.checker.WcagCheckResult;
 import com.example.be_young04.domain.analysis.checker.WcagCheckResult.JudgeType;
 import com.example.be_young04.domain.analysis.checker.WcagChecker;
 import com.example.be_young04.domain.analysis.checker.WcagCheckerRegistry;
+import com.example.be_young04.domain.analysis.dto.PageSnapshot;
 import com.example.be_young04.domain.analysis.entity.AnalysisIssue;
 import com.example.be_young04.domain.analysis.entity.AnalysisIssueLocation;
 import com.example.be_young04.domain.analysis.entity.AnalysisWcagResult;
@@ -15,14 +16,11 @@ import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
 import com.example.be_young04.domain.repository.entity.Repository;
 import com.example.be_young04.domain.repository.service.DBRepositoryService;
 import com.example.be_young04.domain.repository.service.GithubRepositoryService;
-import com.example.be_young04.domain.snapshot.dto.SnapshotResponse;
-import com.example.be_young04.domain.snapshot.service.SnapshotService;
 import com.example.be_young04.domain.wcag.entity.WcagItem;
 import com.example.be_young04.domain.wcag.repository.WcagItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,7 +31,6 @@ public class WcagAnalysisService {
 
     private final GithubRepositoryService githubRepositoryService;
     private final DBRepositoryService dbRepositoryService;
-    private final SnapshotService snapshotService;
     private final WcagCheckerRegistry wcagCheckerRegistry;
     private final AnalysisPromptBuilder analysisPromptBuilder;
     private final AiAnalysisClient aiAnalysisClient;
@@ -43,7 +40,7 @@ public class WcagAnalysisService {
     private final AnalysisIssueLocationRepository analysisIssueLocationRepository;
 
     @Transactional
-    public Long analyze(Long githubId, String repositoryUrl, String branchName, MultipartFile imageFile) {
+    public Long analyze(Long githubId, String repositoryUrl, String branchName, List<PageSnapshot> snapshots) {
 
         Repository repository = dbRepositoryService.getOrCreate(githubId, repositoryUrl);
         Long repositoryId = repository.getRepositoryId();
@@ -51,8 +48,11 @@ public class WcagAnalysisService {
         // Stage 1 — 파일 목록 수집
         RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(repositoryUrl);
 
-        // Stage 2 — 스냅샷 캡처
-        SnapshotResponse snapshot = snapshotService.receive(imageFile);
+        // Stage 2 — 스냅샷 수신
+        // TODO(2단계): filePath ↔ snapshot 매칭 로직으로 교체 예정.
+        // 지금은 컴파일 통과를 위해 첫 번째 스냅샷 이미지만 임시로 사용.
+        boolean hasSnapshot = !snapshots.isEmpty();
+        byte[] snapshotImageBytes = hasSnapshot ? readBytes(snapshots.get(0)) : null;
 
         // Stage 3 — 파일 순회 + 체커 실행 + wcagId 기준 병합
         Map<String, String> fileContents = new LinkedHashMap<>();
@@ -97,15 +97,16 @@ public class WcagAnalysisService {
                     .toList();
         } else {
             // Stage 4-2~4 — 프롬프트 구성 + Gemini 호출 + 파싱
+            // TODO(3단계): 이미지 단위 그룹핑 + locationId 배열 응답 구조로 재설계 예정
             String prompt = analysisPromptBuilder.build(
                     repositoryUrl,
-                    snapshot.getImageBytes() != null,
+                    hasSnapshot,
                     fileContents,
                     codeAiResults,
                     aiResults
             );
 
-            String aiResponse = aiAnalysisClient.analyze(prompt, snapshot.getImageBytes());
+            String aiResponse = aiAnalysisClient.analyze(prompt, snapshotImageBytes);
 
             List<WcagCheckResult> aiParsedResults = analysisPromptBuilder.parseAiResponse(
                     aiResponse,
@@ -132,57 +133,62 @@ public class WcagAnalysisService {
                 .collect(Collectors.groupingBy(WcagCheckResult::getWcagItemId, LinkedHashMap::new, Collectors.toList()));
 
         for (Map.Entry<Long, List<WcagCheckResult>> entry : resultsByWcagItemId.entrySet()) {
-        Long wcagItemId = entry.getKey();
-        List<WcagCheckResult> group = entry.getValue();
+            Long wcagItemId = entry.getKey();
+            List<WcagCheckResult> group = entry.getValue();
 
-        WcagItem wcagItem = resolveWcagItem(wcagItemId);
-        if (wcagItem == null) continue; // 매칭되는 WCAG_ITEM 없으면 스킵
+            WcagItem wcagItem = resolveWcagItem(wcagItemId);
+            if (wcagItem == null) continue;
 
-        // 그룹 내 하나라도 FAIL이면 전체 FAIL, 전부 PASS면 PASS, 나머지(전부 null)는 NA
-        boolean anyViolated = group.stream().anyMatch(r -> Boolean.TRUE.equals(r.getViolated()));
-        boolean anyPass = group.stream().anyMatch(r -> Boolean.FALSE.equals(r.getViolated()));
-        String status = anyViolated ? "FAIL" : (anyPass ? "PASS" : "NA");
+            boolean anyViolated = group.stream().anyMatch(r -> Boolean.TRUE.equals(r.getViolated()));
+            boolean anyPass = group.stream().anyMatch(r -> Boolean.FALSE.equals(r.getViolated()));
+            String status = anyViolated ? "FAIL" : (anyPass ? "PASS" : "NA");
 
-        AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
-                AnalysisWcagResult.builder()
-                        .repositoryId(repositoryId)
-                        .wcagItemId(wcagItem.getWcagItemId())
-                        .status(status)
-                        .build()
-        );
+            AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
+                    AnalysisWcagResult.builder()
+                            .repositoryId(repositoryId)
+                            .wcagItemId(wcagItem.getWcagItemId())
+                            .status(status)
+                            .build()
+            );
 
-        if (!"FAIL".equals(status)) continue;
+            if (!"FAIL".equals(status)) continue;
 
-        AnalysisIssue issue = analysisIssueRepository.save(
-                AnalysisIssue.builder()
-                        .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
-                        .build()
-        );
+            AnalysisIssue issue = analysisIssueRepository.save(
+                    AnalysisIssue.builder()
+                            .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
+                            .build()
+            );
 
-        // FAIL로 판정된 파일들의 location만 모아서 저장 (파일명은 각 result에서 그대로 가져옴)
-        for (WcagCheckResult result : group) {
+            for (WcagCheckResult result : group) {
                 if (!Boolean.TRUE.equals(result.getViolated())) continue;
 
                 for (WcagCheckResult.IssueLocation loc : result.getLocations()) {
-                analysisIssueLocationRepository.save(
-                        AnalysisIssueLocation.builder()
-                                .analysisIssueId(issue.getAnalysisIssueId())
-                                .targetFilePath(result.getFilePath())
-                                .targetSelector(loc.getCssSelector())
-                                .originalCodeBlock(loc.getViolatedCode() != null ? loc.getViolatedCode() : "")
-                                .suggestion(loc.getSuggestion() != null ? loc.getSuggestion() : "")
-                                .build()
-                );
+                    analysisIssueLocationRepository.save(
+                            AnalysisIssueLocation.builder()
+                                    .analysisIssueId(issue.getAnalysisIssueId())
+                                    .targetFilePath(result.getFilePath())
+                                    .targetSelector(loc.getCssSelector())
+                                    .originalCodeBlock(loc.getViolatedCode() != null ? loc.getViolatedCode() : "")
+                                    .suggestion(loc.getSuggestion() != null ? loc.getSuggestion() : "")
+                                    .build()
+                    );
                 }
-        }
+            }
         }
 
         return repositoryId;
-}
+    }
 
-// SC 첫 매칭 임시 로직 제거 → 어댑터가 채운 고정 PK로 직접 조회
-private WcagItem resolveWcagItem(Long wcagItemId) {
-    if (wcagItemId == null) return null;
-    return wcagItemRepository.findById(wcagItemId).orElse(null);
-}
+    private byte[] readBytes(PageSnapshot snapshot) {
+        try {
+            return snapshot.image().getBytes();
+        } catch (Exception e) {
+            throw new IllegalStateException("스냅샷 이미지를 읽는 중 오류가 발생했습니다.", e);
+        }
+    }
+
+    private WcagItem resolveWcagItem(Long wcagItemId) {
+        if (wcagItemId == null) return null;
+        return wcagItemRepository.findById(wcagItemId).orElse(null);
+    }
 }
