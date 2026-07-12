@@ -31,6 +31,7 @@ public class Sc331ErrorIdentificationRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("오류 메시지의 명확성과 정확성은 AI 분석이 필요합니다.")
+                .defaultSuggestion("오류 메시지에 role=\"alert\"와 aria-describedby를 추가해 오류를 명확히 알리세요.")
                 .issues(issues)
                 .build();
     }
@@ -65,5 +66,10 @@ public class Sc331ErrorIdentificationRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(74L);
     }
 }

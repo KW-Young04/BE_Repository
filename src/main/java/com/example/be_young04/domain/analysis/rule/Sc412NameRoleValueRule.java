@@ -32,6 +32,7 @@ public class Sc412NameRoleValueRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("커스텀 컴포넌트의 ARIA 설정 적절성은 AI 분석이 필요합니다.")
+                .defaultSuggestion("커스텀 컴포넌트에 적절한 role, aria-label, 상태 속성(aria-pressed 등)을 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -82,5 +83,10 @@ public class Sc412NameRoleValueRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(86L);
     }
 }

@@ -32,6 +32,7 @@ public class Sc142AudioControlRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("autoplay 속성 감지 및 볼륨/정지 컨트롤 UI 존재 여부를 검사합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("자동 재생 오디오/비디오에 controls 속성을 추가해 정지·음소거가 가능하게 하세요.")
                 .issues(issues)
                 .build();
     }
@@ -54,5 +55,10 @@ public class Sc142AudioControlRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(32L);
     }
 }

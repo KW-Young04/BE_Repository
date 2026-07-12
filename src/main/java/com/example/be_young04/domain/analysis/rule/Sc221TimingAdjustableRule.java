@@ -33,6 +33,7 @@ public class Sc221TimingAdjustableRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("setTimeout/setInterval 감지 후 값을 계산하고, 타이머 제어 UI 존재 여부를 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "WARN")
+                .defaultSuggestion("시간 제한에 사용자가 연장하거나 끌 수 있는 컨트롤을 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -83,5 +84,10 @@ public class Sc221TimingAdjustableRule implements AccessibilityRule {
     private boolean hasUpdateControl(String code) {
         // 자동 업데이트 제어 UI 확인
         return Pattern.compile("(pause|stop|disable|control)", Pattern.CASE_INSENSITIVE).matcher(code).find();
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(41L, 42L);
     }
 }

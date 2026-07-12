@@ -33,6 +33,7 @@ public class Sc111NonTextContentRule implements AccessibilityRule {
                 .implementationMethod("\uC815\uC801 \uBD84\uC11D")
                 .implementationDescription("img \uD0DC\uADF8\uC758 alt \uC18D\uC131\uACFC video/audio \uD0DC\uADF8 \uB0B4\uBD80\uC758 track \uD0DC\uADF8 \uC874\uC7AC \uC5EC\uBD80\uB97C \uAC80\uC0AC\uD55C\uB2E4.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("video/audio 태그 내부에 <track> 요소를 추가해 자막이나 설명 텍스트를 제공하세요.")
                 .issues(issues)
                 .build();
     }
@@ -118,5 +119,10 @@ public class Sc111NonTextContentRule implements AccessibilityRule {
             }
         }
         return null;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(1L);
     }
 }

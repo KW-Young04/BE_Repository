@@ -33,6 +33,7 @@ public class Sc123AudioDescriptionRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("video 태그 내 track[kind=descriptions] 또는 미디어 대안 링크 존재 여부를 검사합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("video 태그 내부에 kind=\"descriptions\" track이나 텍스트 대안 링크를 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -57,5 +58,10 @@ public class Sc123AudioDescriptionRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(10L);
     }
 }

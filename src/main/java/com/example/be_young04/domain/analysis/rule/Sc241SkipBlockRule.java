@@ -33,6 +33,7 @@ public class Sc241SkipBlockRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("skip-nav 링크 또는 ARIA landmark(main, nav 등) 존재 여부를 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "WARN")
+                .defaultSuggestion("본문 상단에 skip 링크를 추가하거나 main/nav 등 ARIA landmark를 지정하세요.")
                 .issues(issues)
                 .build();
     }
@@ -58,5 +59,10 @@ public class Sc241SkipBlockRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(49L);
     }
 }

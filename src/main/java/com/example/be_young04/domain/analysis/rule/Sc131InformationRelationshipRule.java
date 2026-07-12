@@ -35,6 +35,7 @@ public class Sc131InformationRelationshipRule implements AccessibilityRule {
                 .status(issues.isEmpty() ? "PASS" : "WARN")
                 .aiReviewRequired(true)
                 .aiReviewGuide("구조의 의미적 적절성은 AI 판단이 필요합니다.")
+                .defaultSuggestion("header, nav, main 등 시맨틱 태그와 계층적인 제목(h1~h6)을 사용해 구조를 명확히 하세요.")
                 .issues(issues)
                 .build();
     }
@@ -65,5 +66,10 @@ public class Sc131InformationRelationshipRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(12L);
     }
 }

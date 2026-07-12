@@ -32,6 +32,7 @@ public class Sc242PageTitleRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("title 태그의 존재 여부와 비어있지 않은지 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("페이지의 주제를 설명하는 <title> 태그를 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -62,5 +63,15 @@ public class Sc242PageTitleRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(51L);
+    }
+
+    @Override
+    public boolean isRootDocumentOnly() {
+        return true;
     }
 }

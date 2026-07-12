@@ -32,6 +32,7 @@ public class Sc121VideoOnlyPrerecordedRule implements AccessibilityRule {
                 .implementationMethod("\uC815\uC801 \uBD84\uC11D")
                 .implementationDescription("video \uD0DC\uADF8\uAC00 \uC788\uC744 \uB54C track kind=\"descriptions\" \uB610\uB294 \uC778\uC811\uD55C \uD14D\uC2A4\uD2B8 \uB300\uBCF8 \uB9C1\uD06C\uAC00 \uC788\uB294\uC9C0 \uAC80\uC0AC\uD55C\uB2E4.")
                 .status(issues.isEmpty() ? "PASS" : "FAIL")
+                .defaultSuggestion("비디오 콘텐츠에 텍스트 대안이나 오디오 트랙을 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -112,5 +113,10 @@ public class Sc121VideoOnlyPrerecordedRule implements AccessibilityRule {
             return normalized.substring(0, 180) + "...";
         }
         return normalized;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(8L);
     }
 }

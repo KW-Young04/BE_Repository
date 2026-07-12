@@ -29,6 +29,7 @@ public class Sc222AutoUpdateControlRule implements AccessibilityRule {
                 .implementationMethod("정적 분석")
                 .implementationDescription("setInterval·WebSocket 자동 업데이트 패턴을 감지하고 제어 UI를 확인합니다.")
                 .status(issues.isEmpty() ? "PASS" : "WARN")
+                .defaultSuggestion("자동 업데이트되는 콘텐츠에 일시정지/정지 버튼을 추가하세요.")
                 .issues(issues)
                 .build();
     }
@@ -63,5 +64,10 @@ public class Sc222AutoUpdateControlRule implements AccessibilityRule {
         }
 
         return issues;
+    }
+
+    @Override
+    public List<Long> getWcagItemIds() {
+        return List.of(46L);
     }
 }
