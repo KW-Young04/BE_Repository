@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -122,45 +123,60 @@ public class WcagAnalysisService {
         }
 
         // Stage 5 — 재분석 정책: 기존 결과 삭제 후 재생성
-analysisWcagResultRepository.deleteByRepositoryId(repositoryId);
+        analysisWcagResultRepository.deleteByRepositoryId(repositoryId);
 
-for (WcagCheckResult result : finalResults) {
-    WcagItem wcagItem = resolveWcagItem(result.getWcagItemId());
-    if (wcagItem == null) continue; // 매칭되는 WCAG_ITEM 없으면 스킵
+        // wcagItemId 기준으로 그룹핑 (같은 항목이 여러 파일에서 나와도 하나로 병합)
+        Map<Long, List<WcagCheckResult>> resultsByWcagItemId = finalResults.stream()
+                .filter(r -> r.getWcagItemId() != null)
+                .collect(Collectors.groupingBy(WcagCheckResult::getWcagItemId, LinkedHashMap::new, Collectors.toList()));
 
-    String status = result.getViolated() == null ? "NA"
-            : (result.getViolated() ? "FAIL" : "PASS");
+        for (Map.Entry<Long, List<WcagCheckResult>> entry : resultsByWcagItemId.entrySet()) {
+        Long wcagItemId = entry.getKey();
+        List<WcagCheckResult> group = entry.getValue();
 
-    AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
-            AnalysisWcagResult.builder()
-                    .repositoryId(repositoryId)
-                    .wcagItemId(wcagItem.getWcagItemId())
-                    .status(status)
-                    .build()
-    );
+        WcagItem wcagItem = resolveWcagItem(wcagItemId);
+        if (wcagItem == null) continue; // 매칭되는 WCAG_ITEM 없으면 스킵
 
-    if (!"FAIL".equals(status)) continue;
+        // 그룹 내 하나라도 FAIL이면 전체 FAIL, 전부 PASS면 PASS, 나머지(전부 null)는 NA
+        boolean anyViolated = group.stream().anyMatch(r -> Boolean.TRUE.equals(r.getViolated()));
+        boolean anyPass = group.stream().anyMatch(r -> Boolean.FALSE.equals(r.getViolated()));
+        String status = anyViolated ? "FAIL" : (anyPass ? "PASS" : "NA");
 
-    AnalysisIssue issue = analysisIssueRepository.save(
-            AnalysisIssue.builder()
-                    .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
-                    .build()
-    );
-
-    for (WcagCheckResult.IssueLocation loc : result.getLocations()) {
-        analysisIssueLocationRepository.save(
-                AnalysisIssueLocation.builder()
-                        .analysisIssueId(issue.getAnalysisIssueId())
-                        .targetFilePath(result.getFilePath())
-                        .targetSelector(loc.getCssSelector())
-                        .originalCodeBlock(loc.getViolatedCode() != null ? loc.getViolatedCode() : "")
-                        .suggestion(loc.getSuggestion() != null ? loc.getSuggestion() : "")
+        AnalysisWcagResult wcagResult = analysisWcagResultRepository.save(
+                AnalysisWcagResult.builder()
+                        .repositoryId(repositoryId)
+                        .wcagItemId(wcagItem.getWcagItemId())
+                        .status(status)
                         .build()
         );
-    }
-}
 
-return repositoryId;
+        if (!"FAIL".equals(status)) continue;
+
+        AnalysisIssue issue = analysisIssueRepository.save(
+                AnalysisIssue.builder()
+                        .analysisWcagResultId(wcagResult.getAnalysisWcagResultId())
+                        .build()
+        );
+
+        // FAIL로 판정된 파일들의 location만 모아서 저장 (파일명은 각 result에서 그대로 가져옴)
+        for (WcagCheckResult result : group) {
+                if (!Boolean.TRUE.equals(result.getViolated())) continue;
+
+                for (WcagCheckResult.IssueLocation loc : result.getLocations()) {
+                analysisIssueLocationRepository.save(
+                        AnalysisIssueLocation.builder()
+                                .analysisIssueId(issue.getAnalysisIssueId())
+                                .targetFilePath(result.getFilePath())
+                                .targetSelector(loc.getCssSelector())
+                                .originalCodeBlock(loc.getViolatedCode() != null ? loc.getViolatedCode() : "")
+                                .suggestion(loc.getSuggestion() != null ? loc.getSuggestion() : "")
+                                .build()
+                );
+                }
+        }
+        }
+
+        return repositoryId;
 }
 
 // SC 첫 매칭 임시 로직 제거 → 어댑터가 채운 고정 PK로 직접 조회
