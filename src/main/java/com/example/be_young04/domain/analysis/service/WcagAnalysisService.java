@@ -71,6 +71,7 @@ public class WcagAnalysisService {
 
             for (WcagChecker checker : checkers) {
                 WcagCheckResult result = checker.check(node.getPath(), file.getContent());
+                if (result == null) continue;
                 resultsByWcagId
                         .computeIfAbsent(result.getWcagId(), k -> new ArrayList<>())
                         .add(result);

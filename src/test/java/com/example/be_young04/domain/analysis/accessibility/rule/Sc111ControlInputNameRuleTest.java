@@ -1,6 +1,8 @@
 package com.example.be_young04.domain.analysis.accessibility.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
+import com.example.be_young04.domain.analysis.rule.Sc111ControlInputNameRule;
+
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

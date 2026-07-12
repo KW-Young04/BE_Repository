@@ -1,7 +1,8 @@
 package com.example.be_young04.domain.analysis.accessibility;
 
-import com.example.be_young04.domain.analysis.accessibility.rule.*;
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
+import com.example.be_young04.domain.analysis.rule.*;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
