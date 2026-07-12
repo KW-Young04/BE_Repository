@@ -1,4 +1,4 @@
-package com.example.be_young04.domain.analysis.dto;
+package com.example.be_young04.domain.snapshot.dto;
 
 import java.util.List;
 

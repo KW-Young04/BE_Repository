@@ -1,8 +1,8 @@
 package com.example.be_young04.domain.analysis.controller;
 
-import com.example.be_young04.domain.analysis.dto.PageSnapshot;
-import com.example.be_young04.domain.analysis.dto.SnapshotMetaDto;
 import com.example.be_young04.domain.analysis.service.WcagAnalysisService;
+import com.example.be_young04.domain.snapshot.dto.PageSnapshot;
+import com.example.be_young04.domain.snapshot.dto.SnapshotMetaDto;
 import com.example.be_young04.global.common.response.ApiResponse;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
