@@ -48,12 +48,6 @@ public class WcagAnalysisService {
         // Stage 1 — 파일 목록 수집
         RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(repositoryUrl);
 
-        // Stage 2 — 스냅샷 수신
-        // TODO(2단계): filePath ↔ snapshot 매칭 로직으로 교체 예정.
-        // 지금은 컴파일 통과를 위해 첫 번째 스냅샷 이미지만 임시로 사용.
-        boolean hasSnapshot = !snapshots.isEmpty();
-        byte[] snapshotImageBytes = hasSnapshot ? readBytes(snapshots.get(0)) : null;
-
         // Stage 3 — 파일 순회 + 체커 실행 + wcagId 기준 병합
         Map<String, String> fileContents = new LinkedHashMap<>();
         Map<String, List<WcagCheckResult>> resultsByWcagId = new LinkedHashMap<>();
@@ -96,8 +90,18 @@ public class WcagAnalysisService {
                     .flatMap(List::stream)
                     .toList();
         } else {
-            // Stage 4-2~4 — 프롬프트 구성 + Gemini 호출 + 파싱
-            // TODO(3단계): 이미지 단위 그룹핑 + locationId 배열 응답 구조로 재설계 예정
+            // Stage 4-2 — 스냅샷 매칭 (filePath 기준, 1:N)
+            List<WcagCheckResult> aiTargets = new ArrayList<>();
+            aiTargets.addAll(codeAiResults);
+            aiTargets.addAll(aiResults);
+
+            SnapshotMatchResult matchResult = groupBySnapshot(aiTargets, snapshots);
+
+            // TODO(3단계): AnalysisPromptBuilder를 이미지 여러 장 + locationId 배열 응답 구조로 재설계.
+            // 지금은 컴파일 통과 + 기존 흐름 유지를 위해 매칭 결과 중 대표 스냅샷 1장만 사용하는 임시 스텁.
+            boolean hasSnapshot = !snapshots.isEmpty();
+            byte[] snapshotImageBytes = hasSnapshot ? readBytes(snapshots.get(0)) : null;
+
             String prompt = analysisPromptBuilder.build(
                     repositoryUrl,
                     hasSnapshot,
@@ -122,6 +126,9 @@ public class WcagAnalysisService {
             finalResults = new ArrayList<>();
             finalResults.addAll(codeOnlyResults);
             finalResults.addAll(aiParsedResults);
+
+            // 참고용 로그 — 3단계에서 matchResult를 실제 프롬프트 구성에 사용하게 됨
+            logMatchSummary(matchResult);
         }
 
         // Stage 5 — 재분석 정책: 기존 결과 삭제 후 재생성
@@ -179,6 +186,50 @@ public class WcagAnalysisService {
         return repositoryId;
     }
 
+    /**
+     * CODE_AI/AI 판정이 필요한 결과들을, filePath 기준으로 "그 파일을 렌더링한 스크린샷들"과 매칭한다.
+     * 하나의 filePath가 여러 스크린샷에 걸쳐 나올 수 있으므로 1:N 매칭이다.
+     * 매칭되는 스크린샷이 하나도 없는 결과는 fallback 목록으로 분리한다.
+     */
+    private SnapshotMatchResult groupBySnapshot(List<WcagCheckResult> targets, List<PageSnapshot> snapshots) {
+        // filePath -> 그 파일을 렌더링한 모든 스크린샷의 snapshotId 목록
+        Map<String, List<String>> filePathToSnapshotIds = new LinkedHashMap<>();
+        for (PageSnapshot snapshot : snapshots) {
+            for (String path : snapshot.renderedFilePaths()) {
+                filePathToSnapshotIds
+                        .computeIfAbsent(path, k -> new ArrayList<>())
+                        .add(snapshot.snapshotId());
+            }
+        }
+
+        List<MatchedTarget> matched = new ArrayList<>();
+        List<WcagCheckResult> fallback = new ArrayList<>();
+
+        for (WcagCheckResult result : targets) {
+            List<String> snapshotIds = (result.getFilePath() != null)
+                    ? filePathToSnapshotIds.get(result.getFilePath())
+                    : null;
+
+            if (snapshotIds == null || snapshotIds.isEmpty()) {
+                fallback.add(result);
+            } else {
+                matched.add(new MatchedTarget(result, snapshotIds));
+            }
+        }
+
+        return new SnapshotMatchResult(matched, fallback);
+    }
+
+    private void logMatchSummary(SnapshotMatchResult matchResult) {
+        // TODO(3단계): 실제 프롬프트 구성 시 matchResult.matched()/fallback()을 그대로 사용 예정.
+        // 지금은 매칭 로직 검증용 임시 로그.
+        System.out.printf(
+                "[WCAG 매칭] 이미지 매칭 %d건, fallback(이미지 없음) %d건%n",
+                matchResult.matched().size(),
+                matchResult.fallback().size()
+        );
+    }
+
     private byte[] readBytes(PageSnapshot snapshot) {
         try {
             return snapshot.image().getBytes();
@@ -190,5 +241,22 @@ public class WcagAnalysisService {
     private WcagItem resolveWcagItem(Long wcagItemId) {
         if (wcagItemId == null) return null;
         return wcagItemRepository.findById(wcagItemId).orElse(null);
+    }
+
+    /**
+     * 판정 대상 결과 하나와, 그 결과의 filePath를 렌더링한 스냅샷 id 목록(1:N)의 짝.
+     */
+    private record MatchedTarget(WcagCheckResult result, List<String> snapshotIds) {
+    }
+
+    /**
+     * 스냅샷 매칭 결과.
+     * matched: 이미지와 매칭된 (결과, 스냅샷id목록) 쌍의 리스트
+     * fallback: 매칭되는 스냅샷이 없어 이미지 없이 텍스트만으로 판단해야 하는 결과 목록
+     */
+    private record SnapshotMatchResult(
+            List<MatchedTarget> matched,
+            List<WcagCheckResult> fallback
+    ) {
     }
 }
