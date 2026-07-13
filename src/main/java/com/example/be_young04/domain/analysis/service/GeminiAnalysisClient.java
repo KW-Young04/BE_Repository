@@ -100,19 +100,10 @@ public class GeminiAnalysisClient implements AiAnalysisClient {
             return "분석할 내용이 없습니다.";
         }
 
-        String compact = prompt
+        return prompt
                 .replaceAll("[ \\t]+", " ")
                 .replaceAll("\\n{3,}", "\n\n")
                 .trim();
-
-        int maxLength = 5000;
-
-        if (compact.length() > maxLength) {
-            compact = compact.substring(0, maxLength)
-                    + "\n\n[안내] 입력이 길어 일부 코드만 분석합니다.";
-        }
-
-        return compact;
     }
 
     private void sleep(int attempt) {

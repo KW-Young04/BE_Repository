@@ -1,14 +1,21 @@
 package com.example.be_young04.domain.repository.service;
 
-import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
-import com.example.be_young04.domain.repository.dto.*;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
+import com.example.be_young04.domain.repository.dto.GithubContentResponse;
+import com.example.be_young04.domain.repository.dto.GithubRepositoryResponse;
+import com.example.be_young04.domain.repository.dto.GithubTreeResponse;
+import com.example.be_young04.domain.repository.dto.RepositoryFileResponse;
+import com.example.be_young04.domain.repository.dto.RepositoryInfo;
+import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -90,6 +97,17 @@ public class GithubRepositoryService {
     }
 
     public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
-        return null;
+        RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+
+        GithubRepositoryResponse response = githubRestClient.get()
+                .uri("/repos/{owner}/{repo}", repositoryInfo.getOwner(), repositoryInfo.getRepo())
+                .retrieve()
+                .body(GithubRepositoryResponse.class);
+
+        if (response == null) {
+            throw new IllegalStateException("저장소 정보를 불러오지 못했습니다.");
+        }
+
+        return response;
     }
 }

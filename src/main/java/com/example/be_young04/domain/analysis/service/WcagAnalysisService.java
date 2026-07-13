@@ -32,9 +32,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WcagAnalysisService {
 
-    // 배치 한도 (벤더 중립 — Gemini/Bedrock 등 어떤 벤더든 안전하게 통과하는 보수적 기준)
+    // 이미지 배치 한도 (벤더 중립 — 어떤 벤더든 안전하게 통과하는 보수적 기준)
     private static final int MAX_IMAGES_PER_BATCH = 10;
     private static final long MAX_BATCH_BYTES = 8L * 1024 * 1024;
+
+    // location(텍스트) 배치 한도 — 프롬프트가 무한정 길어지는 것을 막기 위한 기준
+    private static final int MAX_LOCATIONS_PER_BATCH = 30;
 
     private final GithubRepositoryService githubRepositoryService;
     private final DBRepositoryService dbRepositoryService;
@@ -52,10 +55,8 @@ public class WcagAnalysisService {
         Repository repository = dbRepositoryService.getOrCreate(githubId, repositoryUrl);
         Long repositoryId = repository.getRepositoryId();
 
-        // Stage 1 — 파일 목록 수집
         RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(repositoryUrl);
 
-        // Stage 3 — 파일 순회 + 체커 실행 + wcagId 기준 병합
         Map<String, String> fileContents = new LinkedHashMap<>();
         Map<String, List<WcagCheckResult>> resultsByWcagId = new LinkedHashMap<>();
 
@@ -79,7 +80,6 @@ public class WcagAnalysisService {
             }
         }
 
-        // Stage 4-1 — CODE_AI, AI 항목 필터링
         List<WcagCheckResult> codeAiResults = resultsByWcagId.values().stream()
                 .flatMap(List::stream)
                 .filter(r -> r.getJudgeType() == JudgeType.CODE_AI)
@@ -100,14 +100,12 @@ public class WcagAnalysisService {
         if (codeAiResults.isEmpty() && aiResults.isEmpty()) {
             finalResults = codeOnlyResults;
         } else {
-            // Stage 4-2 — 스냅샷 매칭 (filePath 기준, 1:N)
             List<WcagCheckResult> aiTargets = new ArrayList<>();
             aiTargets.addAll(codeAiResults);
             aiTargets.addAll(aiResults);
 
             SnapshotMatchResult matchResult = groupBySnapshot(aiTargets, snapshots);
 
-            // Stage 4-3~4 — 배치별 프롬프트 구성 + AI 호출 + 파싱
             List<LocationJudgement> allJudgements = runAiAnalysisInBatches(
                     repositoryUrl, snapshots, matchResult, fileContents
             );
@@ -119,7 +117,6 @@ public class WcagAnalysisService {
             finalResults.addAll(aiReconstructedResults);
         }
 
-        // Stage 5 — 재분석 정책: 기존 결과 삭제 후 재생성
         analysisWcagResultRepository.deleteByRepositoryId(repositoryId);
         saveResults(repositoryId, finalResults);
 
@@ -127,8 +124,11 @@ public class WcagAnalysisService {
     }
 
     /**
-     * 매칭된 스크린샷만 골라 배치로 나누고, 배치마다 프롬프트 생성 + AI 호출 + 파싱하여
-     * 전체 location 판단 결과를 하나로 모은다.
+     * 이미지 배치와 fallback(텍스트 전용) 배치를 각각 독립적으로 구성하여 AI를 호출한다.
+     * - 이미지 배치: 매칭된 스크린샷을 이미지 개수/용량 기준으로 나누고, 그 안의 location이 너무 많으면
+     *   같은 이미지 세트를 공유하는 하위 배치로 추가 분할한다.
+     * - fallback 배치: 이미지가 전혀 필요 없으므로 이미지 배치와 완전히 분리하여 location 개수 기준으로만 나눈다.
+     *   (이미지 중복 첨부가 발생하지 않음)
      */
     private List<LocationJudgement> runAiAnalysisInBatches(
             String repositoryUrl,
@@ -136,7 +136,9 @@ public class WcagAnalysisService {
             SnapshotMatchResult matchResult,
             Map<String, String> fileContents
     ) {
-        // 실제로 매칭된 스크린샷만 사용 (매칭 안 된 스크린샷은 AI에게 보낼 필요 없음)
+        List<LocationJudgement> allJudgements = new ArrayList<>();
+
+        // --- 1. 이미지 배치 처리 ---
         Set<String> usedSnapshotIds = matchResult.matched().stream()
                 .flatMap(t -> t.snapshotIds().stream())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -145,23 +147,17 @@ public class WcagAnalysisService {
                 .filter(s -> usedSnapshotIds.contains(s.snapshotId()))
                 .toList();
 
-        List<List<PageSnapshot>> batches = splitIntoBatches(usedSnapshots);
-        if (batches.isEmpty()) {
-            // 매칭된 이미지가 하나도 없는 경우 (전부 fallback) — 배치 1개(이미지 없음)로 처리
-            batches = new ArrayList<>(List.of(List.of()));
-        }
+        List<List<PageSnapshot>> imageBatches = splitByImageLimit(usedSnapshots);
 
-        // snapshotId -> 그 스냅샷이 속한 배치 인덱스
         Map<String, Integer> snapshotIdToBatchIndex = new HashMap<>();
-        for (int i = 0; i < batches.size(); i++) {
-            for (PageSnapshot s : batches.get(i)) {
+        for (int i = 0; i < imageBatches.size(); i++) {
+            for (PageSnapshot s : imageBatches.get(i)) {
                 snapshotIdToBatchIndex.put(s.snapshotId(), i);
             }
         }
 
-        // 배치별 담당 matched target 배정 (target의 snapshotId 중 첫 번째가 속한 배치로, first-match-wins)
-        List<List<MatchedTarget>> targetsPerBatch = new ArrayList<>();
-        for (int i = 0; i < batches.size(); i++) targetsPerBatch.add(new ArrayList<>());
+        List<List<MatchedTarget>> targetsPerImageBatch = new ArrayList<>();
+        for (int i = 0; i < imageBatches.size(); i++) targetsPerImageBatch.add(new ArrayList<>());
 
         for (MatchedTarget target : matchResult.matched()) {
             Integer batchIndex = target.snapshotIds().stream()
@@ -169,41 +165,58 @@ public class WcagAnalysisService {
                     .filter(Objects::nonNull)
                     .findFirst()
                     .orElse(0);
-            targetsPerBatch.get(batchIndex).add(target);
+            if (!imageBatches.isEmpty()) {
+                targetsPerImageBatch.get(batchIndex).add(target);
+            }
         }
 
-        // fallback은 첫 번째 배치에 몰아서 처리
-        List<WcagCheckResult> fallbackForFirstBatch = matchResult.fallback();
+        for (int i = 0; i < imageBatches.size(); i++) {
+            List<PageSnapshot> batchSnapshots = imageBatches.get(i);
+            List<MatchedTarget> batchTargets = targetsPerImageBatch.get(i);
+            if (batchTargets.isEmpty()) continue;
 
-        List<LocationJudgement> allJudgements = new ArrayList<>();
+            // location 수 기준으로 하위 분할 (같은 이미지 세트를 그대로 공유)
+            for (List<MatchedTarget> subBatchTargets : splitTargetsByLocationLimit(batchTargets)) {
+                allJudgements.addAll(callAiForBatch(
+                        repositoryUrl, batchSnapshots, subBatchTargets, List.of(), fileContents
+                ));
+            }
+        }
 
-        for (int i = 0; i < batches.size(); i++) {
-            List<PageSnapshot> batchSnapshots = batches.get(i);
-            List<MatchedTarget> batchTargets = targetsPerBatch.get(i);
-            List<WcagCheckResult> batchFallback = (i == 0) ? fallbackForFirstBatch : List.of();
-
-            if (batchTargets.isEmpty() && batchFallback.isEmpty()) continue;
-
-            PromptBuildResult buildResult = analysisPromptBuilder.build(
-                    repositoryUrl, batchSnapshots, batchTargets, batchFallback, fileContents
-            );
-
-            List<byte[]> imageBytesList = batchSnapshots.stream()
-                    .map(this::readBytes)
-                    .toList();
-
-            String aiResponse = aiAnalysisClient.analyze(buildResult.prompt(), imageBytesList);
-
-            allJudgements.addAll(analysisPromptBuilder.parseAiResponse(aiResponse, buildResult.locations()));
+        // --- 2. fallback(텍스트 전용) 배치 처리 — 이미지와 완전히 독립 ---
+        for (List<WcagCheckResult> fallbackBatch : splitResultsByLocationLimit(matchResult.fallback())) {
+            allJudgements.addAll(callAiForBatch(
+                    repositoryUrl, List.of(), List.of(), fallbackBatch, fileContents
+            ));
         }
 
         return allJudgements;
     }
 
+    private List<LocationJudgement> callAiForBatch(
+            String repositoryUrl,
+            List<PageSnapshot> batchSnapshots,
+            List<MatchedTarget> batchTargets,
+            List<WcagCheckResult> batchFallback,
+            Map<String, String> fileContents
+    ) {
+        PromptBuildResult buildResult = analysisPromptBuilder.build(
+                repositoryUrl, batchSnapshots, batchTargets, batchFallback, fileContents
+        );
+
+        List<byte[]> imageBytesList = batchSnapshots.stream()
+                .map(this::readBytes)
+                .toList();
+
+        String aiResponse = aiAnalysisClient.analyze(buildResult.prompt(), imageBytesList);
+
+        return analysisPromptBuilder.parseAiResponse(aiResponse, buildResult.locations());
+    }
+
     /**
      * 이미지 리스트를 "이미지 장수 10장" 또는 "누적 용량 8MB" 중 먼저 도달하는 기준으로 배치 분할한다.
      */
-    private List<List<PageSnapshot>> splitIntoBatches(List<PageSnapshot> snapshots) {
+    private List<List<PageSnapshot>> splitByImageLimit(List<PageSnapshot> snapshots) {
         List<List<PageSnapshot>> batches = new ArrayList<>();
         List<PageSnapshot> current = new ArrayList<>();
         long currentBytes = 0;
@@ -232,10 +245,67 @@ public class WcagAnalysisService {
     }
 
     /**
-     * CODE_AI/AI 판정이 필요한 결과들을, filePath 기준으로 "그 파일을 렌더링한 스크린샷들"과 매칭한다.
-     * 하나의 filePath가 여러 스크린샷에 걸쳐 나올 수 있으므로 1:N 매칭이다.
-     * 매칭되는 스크린샷이 하나도 없는 결과는 fallback 목록으로 분리한다.
+     * MatchedTarget 리스트를, 그 안에 담긴 location 총 개수가 MAX_LOCATIONS_PER_BATCH를 넘지 않도록 나눈다.
+     * (target 하나가 location을 여러 개 가질 수 있으므로 target 단위가 아니라 location 개수로 계산한다)
      */
+    private List<List<MatchedTarget>> splitTargetsByLocationLimit(List<MatchedTarget> targets) {
+        List<List<MatchedTarget>> batches = new ArrayList<>();
+        List<MatchedTarget> current = new ArrayList<>();
+        int currentCount = 0;
+
+        for (MatchedTarget target : targets) {
+            int locCount = countLocations(target.result());
+
+            if (!current.isEmpty() && currentCount + locCount > MAX_LOCATIONS_PER_BATCH) {
+                batches.add(current);
+                current = new ArrayList<>();
+                currentCount = 0;
+            }
+
+            current.add(target);
+            currentCount += locCount;
+        }
+
+        if (!current.isEmpty()) {
+            batches.add(current);
+        }
+
+        return batches;
+    }
+
+    /**
+     * fallback WcagCheckResult 리스트를 location 개수 기준으로 나눈다. (이미지 없음, 순수 텍스트 배치)
+     */
+    private List<List<WcagCheckResult>> splitResultsByLocationLimit(List<WcagCheckResult> results) {
+        List<List<WcagCheckResult>> batches = new ArrayList<>();
+        List<WcagCheckResult> current = new ArrayList<>();
+        int currentCount = 0;
+
+        for (WcagCheckResult result : results) {
+            int locCount = countLocations(result);
+
+            if (!current.isEmpty() && currentCount + locCount > MAX_LOCATIONS_PER_BATCH) {
+                batches.add(current);
+                current = new ArrayList<>();
+                currentCount = 0;
+            }
+
+            current.add(result);
+            currentCount += locCount;
+        }
+
+        if (!current.isEmpty()) {
+            batches.add(current);
+        }
+
+        return batches;
+    }
+
+    private int countLocations(WcagCheckResult result) {
+        List<IssueLocation> locations = result.getLocations();
+        return (locations == null || locations.isEmpty()) ? 1 : locations.size();
+    }
+
     private SnapshotMatchResult groupBySnapshot(List<WcagCheckResult> targets, List<PageSnapshot> snapshots) {
         Map<String, List<String>> filePathToSnapshotIds = new LinkedHashMap<>();
         for (PageSnapshot snapshot : snapshots) {
@@ -264,12 +334,6 @@ public class WcagAnalysisService {
         return new SnapshotMatchResult(matched, fallback);
     }
 
-    /**
-     * location 단위 AI 판단 결과를, 원본 result별로 다시 묶어 WcagCheckResult 형태로 복원한다.
-     * result.violated는 더 이상 의미 없으므로 null로 두고, 실제 위반 여부는 각 IssueLocation.violated에 담는다.
-     * 그룹핑은 원본 result 인스턴스의 참조(identity) 기준이다 — 내용이 같은 별개 인스턴스와 혼동되지 않도록
-     * IdentityHashMap을 명시적으로 사용한다.
-     */
     private List<WcagCheckResult> reconstructFromJudgements(List<LocationJudgement> judgements) {
         Map<WcagCheckResult, List<LocationJudgement>> byOriginalResult = new IdentityHashMap<>();
 
@@ -300,7 +364,7 @@ public class WcagAnalysisService {
                     .wcagItemId(original.getWcagItemId())
                     .title(original.getTitle())
                     .judgeType(original.getJudgeType())
-                    .violated(null) // 이제 location 단위(IssueLocation.violated)로 대체됨
+                    .violated(null)
                     .filePath(original.getFilePath())
                     .message(original.getMessage())
                     .locations(newLocations)
@@ -310,11 +374,6 @@ public class WcagAnalysisService {
         return reconstructed;
     }
 
-    /**
-     * wcagItemId 기준 그룹핑 + 저장.
-     * 위반 여부는 location 단위(IssueLocation.violated)를 우선 사용하고,
-     * location에 값이 없으면(CODE 타입처럼 애초에 위치별 구분이 없는 경우) result.violated로 대체한다.
-     */
     private void saveResults(Long repositoryId, List<WcagCheckResult> finalResults) {
         Map<Long, List<WcagCheckResult>> resultsByWcagItemId = finalResults.stream()
                 .filter(r -> r.getWcagItemId() != null)
@@ -370,11 +429,6 @@ public class WcagAnalysisService {
         }
     }
 
-    /**
-     * result 하나가 가진 "실효 위반 여부" 목록.
-     * - locations가 있으면 각 location마다: location.violated가 있으면 그 값, 없으면 result.violated로 대체
-     * - locations가 비어 있으면(예: CODE 타입 PASS/NA로 위치 자체가 없는 경우) result.violated 하나를 그대로 사용
-     */
     private List<Boolean> effectiveViolations(WcagCheckResult result) {
         if (result.getLocations() == null || result.getLocations().isEmpty()) {
             return new ArrayList<>(Collections.singletonList(result.getViolated()));

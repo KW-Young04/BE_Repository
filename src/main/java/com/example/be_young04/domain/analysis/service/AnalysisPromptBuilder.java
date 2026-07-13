@@ -93,6 +93,19 @@ public class AnalysisPromptBuilder {
                 [저장소 URL]
                 %s
 
+                [응답 형식 - 반드시 이 형식을 그대로 따르세요. JSON만 출력하세요]
+                {
+                "results": [
+                    {
+                    "locationId": "L1",
+                    "violated": true,
+                    "suggestion": "구체적인 수정 방법 (violated가 false면 null)"
+                    }
+                ]
+                }
+                아래 [판단 요청 항목]에 나열된 모든 locationId에 대해 반드시 하나씩 결과를 포함하세요.
+                locationId 값은 임의로 만들지 말고, 아래 항목에 주어진 값을 그대로 사용하세요.
+
                 """.formatted(repositoryUrl));
 
         sb.append("[첨부 이미지 목록]\n");
@@ -124,12 +137,12 @@ public class AnalysisPromptBuilder {
 
             sb.append("""
                     - locationId: %s
-                      wcagId: %s / 판단유형: %s
-                      대상 파일: %s
-                      참고 이미지: %s
-                      cssSelector: %s
-                      위반 의심 코드: %s
-                      판단 근거/컨텍스트: %s
+                    wcagId: %s / 판단유형: %s
+                    대상 파일: %s
+                    참고 이미지: %s
+                    cssSelector: %s
+                    위반 의심 코드: %s
+                    판단 근거/컨텍스트: %s
                     """.formatted(
                     pl.locationId(),
                     result.getWcagId(),
@@ -141,20 +154,6 @@ public class AnalysisPromptBuilder {
                     result.getAiContext()
             ));
         }
-
-        sb.append("""
-
-                [응답 형식 - JSON만 출력]
-                {
-                  "results": [
-                    {
-                      "locationId": "L1",
-                      "violated": true,
-                      "suggestion": "구체적인 수정 방법 (violated가 false면 null)"
-                    }
-                  ]
-                }
-                """);
 
         return sb.toString();
     }
