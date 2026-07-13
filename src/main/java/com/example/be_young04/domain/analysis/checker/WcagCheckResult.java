@@ -18,7 +18,8 @@ public class WcagCheckResult {
     // 판단 유형
     private JudgeType judgeType;
 
-    // 위반 여부 (CODE만 확정 가능, CODE_AI/AI는 null로 두고 AI 최종 판단에 위임)
+    // 위반 여부 (CODE 타입 전용 — 코드만으로 확정 가능한 경우 사용.
+    // CODE_AI/AI 타입은 이 필드 대신 각 IssueLocation.violated를 위치별로 사용한다.)
     private Boolean violated;
 
     // AI에게 넘길 추가 컨텍스트 (CODE_AI, AI인 경우)
@@ -49,5 +50,10 @@ public class WcagCheckResult {
         private String cssSelector;
         private String violatedCode;
         private String suggestion;
+
+        // 이 위치가 실제로 위반인지 여부.
+        // CODE_AI/AI 타입은 AI 응답을 파싱하면서 위치별로 채워짐 (result.violated 대신 이걸 기준으로 저장 여부 판단).
+        // CODE 타입은 result.violated를 그대로 따르므로 이 필드는 null로 둬도 무방.
+        private Boolean violated;
     }
 }

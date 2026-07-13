@@ -29,7 +29,7 @@ public class GeminiAnalysisClient implements AiAnalysisClient {
     private String apiKey;
 
     @Override
-    public String analyze(String prompt, byte[] imageBytes) {
+    public String analyze(String prompt, List<byte[]> imageBytesList) {
         RestClient restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .build();
@@ -41,14 +41,18 @@ public class GeminiAnalysisClient implements AiAnalysisClient {
                 .text(optimizedPrompt)
                 .build());
 
-        if (imageBytes != null && imageBytes.length > 0) {
-            String base64Image = Base64.getEncoder().encodeToString(imageBytes);
-            parts.add(GeminiRequest.Part.builder()
-                    .inlineData(GeminiRequest.InlineData.builder()
-                            .mimeType("image/png")
-                            .data(base64Image)
-                            .build())
-                    .build());
+        if (imageBytesList != null) {
+            for (byte[] imageBytes : imageBytesList) {
+                if (imageBytes == null || imageBytes.length == 0) continue;
+
+                String base64Image = Base64.getEncoder().encodeToString(imageBytes);
+                parts.add(GeminiRequest.Part.builder()
+                        .inlineData(GeminiRequest.InlineData.builder()
+                                .mimeType("image/png")
+                                .data(base64Image)
+                                .build())
+                        .build());
+            }
         }
 
         GeminiRequest request = GeminiRequest.builder()
