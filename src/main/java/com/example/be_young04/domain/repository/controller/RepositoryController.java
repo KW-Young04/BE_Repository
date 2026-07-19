@@ -1,5 +1,7 @@
 package com.example.be_young04.domain.repository.controller;
 
+import com.example.be_young04.domain.repository.dto.RepositoryBranchFileRequest;
+import com.example.be_young04.domain.repository.dto.RepositoryBranchRequest;
 import com.example.be_young04.domain.repository.dto.RepositoryFileResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
 import com.example.be_young04.domain.repository.service.GithubRepositoryService;
@@ -14,6 +16,43 @@ import org.springframework.web.bind.annotation.*;
 public class RepositoryController {
 
     private final GithubRepositoryService githubRepositoryService;
+
+    @PostMapping("/branch")
+    public ResponseEntity<ApiResponse<RepositoryTreeResponse>> selectRepositoryBranch(
+            @RequestBody RepositoryBranchRequest request
+    ) {
+        RepositoryTreeResponse response = githubRepositoryService.getRepositoryTree(
+                request.getRepositoryUrl(),
+                request.getBranchName()
+        );
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "200REPO003",
+                        "Repository branch tree loaded successfully",
+                        response
+                )
+        );
+    }
+
+    @PostMapping("/branch/file")
+    public ResponseEntity<ApiResponse<RepositoryFileResponse>> getBranchFileContent(
+            @RequestBody RepositoryBranchFileRequest request
+    ) {
+        RepositoryFileResponse response = githubRepositoryService.getFileContent(
+                request.getRepositoryUrl(),
+                request.getPath(),
+                request.getBranchName()
+        );
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "200REPO004",
+                        "Repository branch file loaded successfully",
+                        response
+                )
+        );
+    }
 
     @GetMapping("/tree")
     public ResponseEntity<ApiResponse<RepositoryTreeResponse>> getRepositoryTree(
@@ -33,9 +72,10 @@ public class RepositoryController {
     @GetMapping("/file")
     public ResponseEntity<ApiResponse<RepositoryFileResponse>> getFileContent(
             @RequestParam String repositoryUrl,
-            @RequestParam String path
+            @RequestParam String path,
+            @RequestParam(required = false) String branchName
     ) {
-        RepositoryFileResponse response = githubRepositoryService.getFileContent(repositoryUrl, path);
+        RepositoryFileResponse response = githubRepositoryService.getFileContent(repositoryUrl, path, branchName);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
