@@ -26,11 +26,19 @@ public class GithubRepositoryService {
     private final GithubRepositoryClient githubRepositoryClient;
 
     public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
+        return getRepositoryTree(repositoryUrl, "HEAD");
+    }
+
+    public RepositoryTreeResponse getRepositoryTree(String repositoryUrl, String branchName) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+        String ref = normalizeBranchName(branchName);
 
         GithubTreeResponse treeResponse = githubRestClient.get()
-                .uri("/repos/{owner}/{repo}/git/trees/HEAD?recursive=1",
-                        repositoryInfo.getOwner(), repositoryInfo.getRepo())
+                .uri(uriBuilder -> uriBuilder
+                        .path("/repos/{owner}/{repo}/git/trees/")
+                        .pathSegment(ref)
+                        .queryParam("recursive", "1")
+                        .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
                 .retrieve()
                 .body(GithubTreeResponse.class);
 
@@ -49,12 +57,18 @@ public class GithubRepositoryService {
         return RepositoryTreeResponse.builder()
                 .owner(repositoryInfo.getOwner())
                 .repo(repositoryInfo.getRepo())
+                .branch(ref)
                 .nodes(nodes)
                 .build();
     }
 
     public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath) {
+        return getFileContent(repositoryUrl, filePath, "HEAD");
+    }
+
+    public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath, String branchName) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+        String ref = normalizeBranchName(branchName);
 
         String[] pathSegments = filePath.split("/");
 
@@ -62,6 +76,7 @@ public class GithubRepositoryService {
                 .uri(uriBuilder -> uriBuilder
                         .path("/repos/{owner}/{repo}/contents")
                         .pathSegment(pathSegments)
+                        .queryParam("ref", ref)
                         .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
                 .retrieve()
                 .body(GithubContentResponse.class);
@@ -75,6 +90,7 @@ public class GithubRepositoryService {
         return RepositoryFileResponse.builder()
                 .owner(repositoryInfo.getOwner())
                 .repo(repositoryInfo.getRepo())
+                .branch(ref)
                 .path(contentResponse.getPath())
                 .content(decodedContent)
                 .build();
@@ -109,5 +125,13 @@ public class GithubRepositoryService {
         }
 
         return response;
+    }
+
+    private String normalizeBranchName(String branchName) {
+        if (branchName == null || branchName.isBlank()) {
+            return "HEAD";
+        }
+
+        return branchName.trim();
     }
 }

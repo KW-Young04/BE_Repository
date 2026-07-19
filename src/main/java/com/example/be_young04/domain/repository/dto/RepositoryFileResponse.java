@@ -8,6 +8,7 @@ import lombok.Getter;
 public class RepositoryFileResponse {
     private String owner;
     private String repo;
+    private String branch;
     private String path;
     private String content;
 }
