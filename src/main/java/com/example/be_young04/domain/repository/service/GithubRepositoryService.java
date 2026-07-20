@@ -3,11 +3,12 @@ package com.example.be_young04.domain.repository.service;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
 import com.example.be_young04.domain.repository.dto.GithubContentResponse;
 import com.example.be_young04.domain.repository.dto.GithubRepositoryResponse;
 import com.example.be_young04.domain.repository.dto.GithubTreeResponse;
@@ -21,9 +22,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class GithubRepositoryService {
 
+    private static final Set<String> BINARY_EXTENSIONS = Set.of(
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+            ".woff", ".woff2", ".ttf", ".otf",
+            ".mp4", ".webm", ".mov", ".mp3", ".wav"
+    );
+
     private final RestClient githubRestClient;
     private final GithubUrlParser githubUrlParser;
-    private final GithubRepositoryClient githubRepositoryClient;
 
     public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
         return getRepositoryTree(repositoryUrl, "HEAD");
@@ -85,21 +91,29 @@ public class GithubRepositoryService {
             throw new IllegalStateException("파일 내용을 불러오지 못했습니다.");
         }
 
-        String decodedContent = decodeBase64Content(contentResponse.getContent());
+        String normalizedContent = normalizeBase64Content(contentResponse.getContent());
+        boolean binary = isBinaryFile(contentResponse.getPath());
 
         return RepositoryFileResponse.builder()
                 .owner(repositoryInfo.getOwner())
                 .repo(repositoryInfo.getRepo())
                 .branch(ref)
                 .path(contentResponse.getPath())
-                .content(decodedContent)
+                .content(binary ? normalizedContent : decodeBase64Content(normalizedContent))
+                .encoding(binary ? "base64" : "utf-8")
                 .build();
     }
 
-    public List<GithubRepositoryResponse> getRecentRepositories(String accessToken) {
+    private boolean isBinaryFile(String path) {
+        String lowerPath = path == null ? "" : path.toLowerCase(Locale.ROOT);
+        return BINARY_EXTENSIONS.stream().anyMatch(lowerPath::endsWith);
+    }
 
-        return githubRepositoryClient.getRecentRepositories(accessToken);
-
+    private String normalizeBase64Content(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        return content.replace("\n", "").replace("\r", "");
     }
 
     private String decodeBase64Content(String content) {
@@ -107,8 +121,7 @@ public class GithubRepositoryService {
             return "";
         }
 
-        String normalized = content.replace("\n", "");
-        byte[] decoded = Base64.getDecoder().decode(normalized);
+        byte[] decoded = Base64.getDecoder().decode(content);
         return new String(decoded, StandardCharsets.UTF_8);
     }
 

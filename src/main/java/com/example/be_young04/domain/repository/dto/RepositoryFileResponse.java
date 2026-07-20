@@ -11,4 +11,5 @@ public class RepositoryFileResponse {
     private String branch;
     private String path;
     private String content;
+    private String encoding;
 }
