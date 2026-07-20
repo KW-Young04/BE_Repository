@@ -61,6 +61,12 @@ dependencies {
 
     // ObjectMapper
     implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Jsoup (실시간 HTML DOM 파싱/정적 분석용)
+    implementation 'org.jsoup:jsoup:1.17.2'
+
+    // Cache (WCAG_ITEMS 캐싱용)
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
 }
 
 tasks.named('test') {
