@@ -4,8 +4,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
 import com.example.be_young04.domain.repository.dto.GithubContentResponse;
@@ -136,6 +139,35 @@ public class GithubRepositoryService {
         }
 
         return response;
+    }
+
+    private <T> T executeGitHubRequest(Class<T> responseType, String uriTemplate, Object... uriVariables) {
+        try {
+            RestClient.RequestHeadersSpec<?> request = githubRestClient.get().uri(uriTemplate, uriVariables);
+            if (StringUtils.hasText(githubToken)) {
+                request.header("Authorization", "Bearer " + githubToken);
+            }
+            return request.retrieve().body(responseType);
+        } catch (RestClientResponseException e) {
+            if (!isAuthFailure(e) || !StringUtils.hasText(githubToken)) {
+                throw e;
+            }
+
+            try {
+                return githubRestClient.get()
+                        .uri(uriTemplate, uriVariables)
+                        .retrieve()
+                        .body(responseType);
+            } catch (RestClientResponseException retryException) {
+                throw new IllegalStateException(
+                        "GitHub 저장소를 찾을 수 없습니다. URL과 브랜치 이름을 확인해 주세요.",
+                        retryException);
+            }
+        }
+    }
+
+    private boolean isAuthFailure(RestClientResponseException exception) {
+        return exception.getStatusCode().value() == 401 || exception.getStatusCode().value() == 403;
     }
 
     private String normalizeBranchName(String branchName) {

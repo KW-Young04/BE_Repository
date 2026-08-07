@@ -22,9 +22,12 @@ public class GithubUrlParser {
             throw new InvalidGithubUrlException("올바른 GitHub 저장소 URL이 아닙니다.");
         }
 
-        String path = normalized.replace("https://github.com/", "");
-        String[] parts = path.split("/");
+        String path = normalized.substring("https://github.com/".length());
+        if (path.endsWith(".git")) {
+            path = path.substring(0, path.length() - 4);
+        }
 
+        String[] parts = path.split("/", 2);
         if (parts.length < 2) {
             throw new InvalidGithubUrlException("저장소 URL 형식이 올바르지 않습니다.");
         }
