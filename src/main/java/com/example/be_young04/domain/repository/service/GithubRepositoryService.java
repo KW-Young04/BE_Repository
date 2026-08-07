@@ -4,8 +4,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.example.be_young04.domain.repository.client.GithubRepositoryClient;
 import com.example.be_young04.domain.repository.dto.GithubContentResponse;
@@ -25,6 +28,9 @@ public class GithubRepositoryService {
     private final GithubUrlParser githubUrlParser;
     private final GithubRepositoryClient githubRepositoryClient;
 
+    @Value("${github.token:}")
+    private String githubToken;
+
     public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
         return getRepositoryTree(repositoryUrl, "HEAD");
     }
@@ -33,14 +39,12 @@ public class GithubRepositoryService {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
         String ref = normalizeBranchName(branchName);
 
-        GithubTreeResponse treeResponse = githubRestClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/repos/{owner}/{repo}/git/trees/")
-                        .pathSegment(ref)
-                        .queryParam("recursive", "1")
-                        .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
-                .retrieve()
-                .body(GithubTreeResponse.class);
+        GithubTreeResponse treeResponse = executeGitHubRequest(
+                GithubTreeResponse.class,
+                "/repos/{owner}/{repo}/git/trees/{ref}?recursive=1",
+                repositoryInfo.getOwner(),
+                repositoryInfo.getRepo(),
+                ref);
 
         if (treeResponse == null || treeResponse.getTree() == null) {
             throw new IllegalStateException("저장소 트리 구조를 불러오지 못했습니다.");
@@ -72,14 +76,13 @@ public class GithubRepositoryService {
 
         String[] pathSegments = filePath.split("/");
 
-        GithubContentResponse contentResponse = githubRestClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/repos/{owner}/{repo}/contents")
-                        .pathSegment(pathSegments)
-                        .queryParam("ref", ref)
-                        .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
-                .retrieve()
-                .body(GithubContentResponse.class);
+        GithubContentResponse contentResponse = executeGitHubRequest(
+                GithubContentResponse.class,
+                "/repos/{owner}/{repo}/contents/{path}",
+                repositoryInfo.getOwner(),
+                repositoryInfo.getRepo(),
+                String.join("/", pathSegments),
+                ref);
 
         if (contentResponse == null) {
             throw new IllegalStateException("파일 내용을 불러오지 못했습니다.");
@@ -115,16 +118,46 @@ public class GithubRepositoryService {
     public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
 
-        GithubRepositoryResponse response = githubRestClient.get()
-                .uri("/repos/{owner}/{repo}", repositoryInfo.getOwner(), repositoryInfo.getRepo())
-                .retrieve()
-                .body(GithubRepositoryResponse.class);
+        GithubRepositoryResponse response = executeGitHubRequest(
+                GithubRepositoryResponse.class,
+                "/repos/{owner}/{repo}",
+                repositoryInfo.getOwner(),
+                repositoryInfo.getRepo());
 
         if (response == null) {
             throw new IllegalStateException("저장소 정보를 불러오지 못했습니다.");
         }
 
         return response;
+    }
+
+    private <T> T executeGitHubRequest(Class<T> responseType, String uriTemplate, Object... uriVariables) {
+        try {
+            RestClient.RequestHeadersSpec<?> request = githubRestClient.get().uri(uriTemplate, uriVariables);
+            if (StringUtils.hasText(githubToken)) {
+                request.header("Authorization", "Bearer " + githubToken);
+            }
+            return request.retrieve().body(responseType);
+        } catch (RestClientResponseException e) {
+            if (!isAuthFailure(e) || !StringUtils.hasText(githubToken)) {
+                throw e;
+            }
+
+            try {
+                return githubRestClient.get()
+                        .uri(uriTemplate, uriVariables)
+                        .retrieve()
+                        .body(responseType);
+            } catch (RestClientResponseException retryException) {
+                throw new IllegalStateException(
+                        "GitHub 저장소를 찾을 수 없습니다. URL과 브랜치 이름을 확인해 주세요.",
+                        retryException);
+            }
+        }
+    }
+
+    private boolean isAuthFailure(RestClientResponseException exception) {
+        return exception.getStatusCode().value() == 401 || exception.getStatusCode().value() == 403;
     }
 
     private String normalizeBranchName(String branchName) {
