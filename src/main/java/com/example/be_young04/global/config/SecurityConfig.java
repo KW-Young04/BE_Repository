@@ -54,8 +54,7 @@ public class SecurityConfig {
                                 "/login/**",
                                 "/h2-console/**",
                                 // 2. 실시간 분석 API도 필요 시 permitAll에 추가 가능
-                                "/api/analysis/realtime",
-                                "/api/analysis/wcag"
+                                "/api/analysis/realtime"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

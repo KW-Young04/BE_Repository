@@ -17,6 +17,7 @@ import com.example.be_young04.domain.repository.dto.GithubTreeResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryFileResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryInfo;
 import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
+import com.example.be_young04.domain.user.service.GithubUserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,24 +28,26 @@ public class GithubRepositoryService {
     private final RestClient githubRestClient;
     private final GithubUrlParser githubUrlParser;
     private final GithubRepositoryClient githubRepositoryClient;
+    private final GithubUserService githubUserService;
 
-    @Value("${github.token:}")
-    private String githubToken;
-
-    public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
-        return getRepositoryTree(repositoryUrl, "HEAD");
+    public RepositoryTreeResponse getRepositoryTree(Long githubId, String repositoryUrl) {
+        return getRepositoryTree(githubId, repositoryUrl, "HEAD");
     }
 
-    public RepositoryTreeResponse getRepositoryTree(String repositoryUrl, String branchName) {
+    public RepositoryTreeResponse getRepositoryTree(Long githubId, String repositoryUrl, String branchName) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
         String ref = normalizeBranchName(branchName);
+        String accessToken = getAccessToken(githubId);
 
-        GithubTreeResponse treeResponse = executeGitHubRequest(
-                GithubTreeResponse.class,
-                "/repos/{owner}/{repo}/git/trees/{ref}?recursive=1",
-                repositoryInfo.getOwner(),
-                repositoryInfo.getRepo(),
-                ref);
+        GithubTreeResponse treeResponse = githubRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/repos/{owner}/{repo}/git/trees/")
+                        .pathSegment(ref)
+                        .queryParam("recursive", "1")
+                        .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(GithubTreeResponse.class);
 
         if (treeResponse == null || treeResponse.getTree() == null) {
             throw new IllegalStateException("저장소 트리 구조를 불러오지 못했습니다.");
@@ -66,23 +69,31 @@ public class GithubRepositoryService {
                 .build();
     }
 
-    public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath) {
-        return getFileContent(repositoryUrl, filePath, "HEAD");
+    public RepositoryFileResponse getFileContent(Long githubId, String repositoryUrl, String filePath) {
+        return getFileContent(githubId, repositoryUrl, filePath, "HEAD");
     }
 
-    public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath, String branchName) {
+    public RepositoryFileResponse getFileContent(
+            Long githubId,
+            String repositoryUrl,
+            String filePath,
+            String branchName
+    ) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
         String ref = normalizeBranchName(branchName);
+        String accessToken = getAccessToken(githubId);
 
         String[] pathSegments = filePath.split("/");
 
-        GithubContentResponse contentResponse = executeGitHubRequest(
-                GithubContentResponse.class,
-                "/repos/{owner}/{repo}/contents/{path}",
-                repositoryInfo.getOwner(),
-                repositoryInfo.getRepo(),
-                String.join("/", pathSegments),
-                ref);
+        GithubContentResponse contentResponse = githubRestClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/repos/{owner}/{repo}/contents")
+                        .pathSegment(pathSegments)
+                        .queryParam("ref", ref)
+                        .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(GithubContentResponse.class);
 
         if (contentResponse == null) {
             throw new IllegalStateException("파일 내용을 불러오지 못했습니다.");
@@ -99,10 +110,8 @@ public class GithubRepositoryService {
                 .build();
     }
 
-    public List<GithubRepositoryResponse> getRecentRepositories(String accessToken) {
-
-        return githubRepositoryClient.getRecentRepositories(accessToken);
-
+    public List<GithubRepositoryResponse> getRecentRepositories(Long githubId) {
+        return githubRepositoryClient.getRecentRepositories(getAccessToken(githubId));
     }
 
     private String decodeBase64Content(String content) {
@@ -115,14 +124,15 @@ public class GithubRepositoryService {
         return new String(decoded, StandardCharsets.UTF_8);
     }
 
-    public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
+    public GithubRepositoryResponse getRepositoryInfo(Long githubId, String repositoryUrl) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+        String accessToken = getAccessToken(githubId);
 
-        GithubRepositoryResponse response = executeGitHubRequest(
-                GithubRepositoryResponse.class,
-                "/repos/{owner}/{repo}",
-                repositoryInfo.getOwner(),
-                repositoryInfo.getRepo());
+        GithubRepositoryResponse response = githubRestClient.get()
+                .uri("/repos/{owner}/{repo}", repositoryInfo.getOwner(), repositoryInfo.getRepo())
+                .header("Authorization", "Bearer " + accessToken)
+                .retrieve()
+                .body(GithubRepositoryResponse.class);
 
         if (response == null) {
             throw new IllegalStateException("저장소 정보를 불러오지 못했습니다.");
@@ -166,5 +176,13 @@ public class GithubRepositoryService {
         }
 
         return branchName.trim();
+    }
+
+    private String getAccessToken(Long githubId) {
+        if (githubId == null) {
+            throw new IllegalStateException("로그인한 GitHub 사용자를 확인할 수 없습니다.");
+        }
+
+        return githubUserService.getById(githubId).getAccessToken();
     }
 }

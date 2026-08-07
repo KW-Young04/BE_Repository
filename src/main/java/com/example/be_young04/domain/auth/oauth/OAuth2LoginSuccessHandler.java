@@ -30,13 +30,13 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     ) throws IOException {
         CustomOAuth2User user = (CustomOAuth2User) authentication.getPrincipal();
 
-        String accessToken = jwtTokenProvider.createAccessToken(
+        String serviceAccessToken = jwtTokenProvider.createAccessToken(
                 user.getGithubId(),
                 user.getUsername()
         );
 
         response.sendRedirect(
-                redirectUri + "?token=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
+                redirectUri + "?token=" + URLEncoder.encode(serviceAccessToken, StandardCharsets.UTF_8)
         );
     }
 }

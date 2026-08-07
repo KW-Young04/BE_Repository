@@ -24,7 +24,7 @@ public class DBRepositoryService {
                         githubId, repoInfo.getOwner(), repoInfo.getRepo())
                 .orElseGet(() -> {
                     GithubRepositoryResponse info = githubRepositoryService
-                            .getRepositoryInfo(repositoryUrl);
+                            .getRepositoryInfo(githubId, repositoryUrl);
 
                     Repository newRepo = Repository.builder()
                             .repositoryId(info.getId())

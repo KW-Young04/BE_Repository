@@ -37,7 +37,9 @@ public class GithubUser {
     @Column(name = "UPDATED_AT")
     private LocalDateTime updatedAt;
 
-    public void updateToken(String accessToken) {
+    public void updateProfileAndToken(String username, String profileImageUrl, String accessToken) {
+        this.username = username;
+        this.profileImageUrl = profileImageUrl;
         this.accessToken = accessToken;
         this.updatedAt = LocalDateTime.now();
     }
