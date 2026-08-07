@@ -156,8 +156,16 @@ OpenAPI 명세(JSON): `http://localhost:8080/v3/api-docs`
 | GET | `/api/repositories/file` | 저장소 내 특정 파일 조회 |
 | POST | `/api/snapshots` (multipart) | 렌더링 스냅샷(스크린샷) 업로드 |
 | POST | `/api/analysis/wcag` (multipart) | WCAG 분석 실행 및 결과 DB 저장 |
+| GET | `/api/git/status` | Git 변경 파일 및 현재 브랜치 조회 |
+| GET | `/api/git/diff` | 선택 파일 diff 조회 |
+| GET | `/api/git/branches` | 로컬 브랜치 목록 조회 |
+| POST | `/api/git/commit` | 선택 파일 커밋 |
+| POST | `/api/git/push` | 현재 브랜치 push |
+| POST | `/api/git/commit-and-push` | 선택 파일 커밋 후 push |
 
 > 세부 요청/응답 스펙은 Swagger UI에서 실시간으로 확인 가능합니다.
+
+Git API가 작업할 저장소는 `GIT_REPOSITORY_PATH` 환경변수로 지정합니다. 지정하지 않으면 서버 실행 위치를 사용합니다.
 
 ## 📁 폴더 구조 (Folder Structure)
 domain/
