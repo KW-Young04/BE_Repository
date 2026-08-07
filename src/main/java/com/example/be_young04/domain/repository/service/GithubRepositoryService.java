@@ -14,6 +14,7 @@ import com.example.be_young04.domain.repository.dto.GithubTreeResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryFileResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryInfo;
 import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
+import com.example.be_young04.domain.user.service.GithubUserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,14 +25,16 @@ public class GithubRepositoryService {
     private final RestClient githubRestClient;
     private final GithubUrlParser githubUrlParser;
     private final GithubRepositoryClient githubRepositoryClient;
+    private final GithubUserService githubUserService;
 
-    public RepositoryTreeResponse getRepositoryTree(String repositoryUrl) {
-        return getRepositoryTree(repositoryUrl, "HEAD");
+    public RepositoryTreeResponse getRepositoryTree(Long githubId, String repositoryUrl) {
+        return getRepositoryTree(githubId, repositoryUrl, "HEAD");
     }
 
-    public RepositoryTreeResponse getRepositoryTree(String repositoryUrl, String branchName) {
+    public RepositoryTreeResponse getRepositoryTree(Long githubId, String repositoryUrl, String branchName) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
         String ref = normalizeBranchName(branchName);
+        String accessToken = getAccessToken(githubId);
 
         GithubTreeResponse treeResponse = githubRestClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -39,6 +42,7 @@ public class GithubRepositoryService {
                         .pathSegment(ref)
                         .queryParam("recursive", "1")
                         .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
+                .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(GithubTreeResponse.class);
 
@@ -62,13 +66,19 @@ public class GithubRepositoryService {
                 .build();
     }
 
-    public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath) {
-        return getFileContent(repositoryUrl, filePath, "HEAD");
+    public RepositoryFileResponse getFileContent(Long githubId, String repositoryUrl, String filePath) {
+        return getFileContent(githubId, repositoryUrl, filePath, "HEAD");
     }
 
-    public RepositoryFileResponse getFileContent(String repositoryUrl, String filePath, String branchName) {
+    public RepositoryFileResponse getFileContent(
+            Long githubId,
+            String repositoryUrl,
+            String filePath,
+            String branchName
+    ) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
         String ref = normalizeBranchName(branchName);
+        String accessToken = getAccessToken(githubId);
 
         String[] pathSegments = filePath.split("/");
 
@@ -78,6 +88,7 @@ public class GithubRepositoryService {
                         .pathSegment(pathSegments)
                         .queryParam("ref", ref)
                         .build(repositoryInfo.getOwner(), repositoryInfo.getRepo()))
+                .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(GithubContentResponse.class);
 
@@ -96,10 +107,8 @@ public class GithubRepositoryService {
                 .build();
     }
 
-    public List<GithubRepositoryResponse> getRecentRepositories(String accessToken) {
-
-        return githubRepositoryClient.getRecentRepositories(accessToken);
-
+    public List<GithubRepositoryResponse> getRecentRepositories(Long githubId) {
+        return githubRepositoryClient.getRecentRepositories(getAccessToken(githubId));
     }
 
     private String decodeBase64Content(String content) {
@@ -112,11 +121,13 @@ public class GithubRepositoryService {
         return new String(decoded, StandardCharsets.UTF_8);
     }
 
-    public GithubRepositoryResponse getRepositoryInfo(String repositoryUrl) {
+    public GithubRepositoryResponse getRepositoryInfo(Long githubId, String repositoryUrl) {
         RepositoryInfo repositoryInfo = githubUrlParser.parse(repositoryUrl);
+        String accessToken = getAccessToken(githubId);
 
         GithubRepositoryResponse response = githubRestClient.get()
                 .uri("/repos/{owner}/{repo}", repositoryInfo.getOwner(), repositoryInfo.getRepo())
+                .header("Authorization", "Bearer " + accessToken)
                 .retrieve()
                 .body(GithubRepositoryResponse.class);
 
@@ -133,5 +144,13 @@ public class GithubRepositoryService {
         }
 
         return branchName.trim();
+    }
+
+    private String getAccessToken(Long githubId) {
+        if (githubId == null) {
+            throw new IllegalStateException("로그인한 GitHub 사용자를 확인할 수 없습니다.");
+        }
+
+        return githubUserService.getById(githubId).getAccessToken();
     }
 }
