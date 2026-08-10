@@ -31,3 +31,9 @@ spring:
     properties:
       "[hibernate.format_sql]": true
     database-platform: org.hibernate.dialect.MySQLDialect
+
+app:
+  git:
+    repository-path: ${GIT_REPOSITORY_PATH:.}
+    command-timeout-seconds: ${GIT_COMMAND_TIMEOUT_SECONDS:30}
+    default-remote: ${GIT_DEFAULT_REMOTE:origin}

@@ -21,5 +21,6 @@ public class AccessibilityCheckResult {
     private String aiReviewGuide;
     private String aiReviewStatus;
     private String aiReviewResult;
+    private String defaultSuggestion;
     private List<AccessibilityIssue> issues;
 }

@@ -10,6 +10,7 @@ import java.util.List;
 public class RepositoryTreeResponse {
     private String owner;
     private String repo;
+    private String branch;
     private List<TreeNode> nodes;
 
     @Getter

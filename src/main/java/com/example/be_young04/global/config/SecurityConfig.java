@@ -4,10 +4,10 @@ import com.example.be_young04.domain.auth.oauth.CustomOAuth2UserService;
 import com.example.be_young04.domain.auth.oauth.OAuth2LoginSuccessHandler;
 import com.example.be_young04.global.jwt.JwtAuthenticationFilter;
 
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -41,16 +41,20 @@ public class SecurityConfig {
 
                 // 요청 권한 설정
                 .authorizeHttpRequests(auth -> auth
+                        // 1. OPTIONS 요청(Preflight)은 토큰 검사 없이 모두 허용
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/",
                                 "/error",
-                                "/api/**",
+                                "/api/auth/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/oauth2/**",
                                 "/login/**",
-                                "/h2-console/**"
+                                "/h2-console/**",
+                                // 2. 실시간 분석 API도 필요 시 permitAll에 추가 가능
+                                "/api/analysis/realtime"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
@@ -64,7 +68,7 @@ public class SecurityConfig {
                 )
 
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                
+
                 // H2 콘솔 iframe 허용
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
@@ -76,10 +80,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // 3. localhost:8080(Swagger UI) 및 5173(프론트엔드) 허용
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:5173",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080"
+        ));
+
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+
+        // 4. 클라이언트(Swagger/React)가 읽을 수 있는 응답 헤더 설정
+        configuration.setExposedHeaders(List.of("Authorization", "Refresh-Token", "Content-Type"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -16,7 +16,7 @@ public class GithubUserService {
     public GithubUser saveOrUpdate(Long githubId, String username, String profileImageUrl, String accessToken) {
         return githubUserRepository.findById(githubId)
                 .map(user -> {
-                    user.updateToken(accessToken);
+                    user.updateProfileAndToken(username, profileImageUrl, accessToken);
                     return githubUserRepository.save(user);
                 })
                 .orElseGet(() -> githubUserRepository.save(
