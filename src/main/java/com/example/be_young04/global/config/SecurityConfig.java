@@ -15,6 +15,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.example.be_young04.domain.auth.filter.RedirectOriginCaptureFilter;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 
 import java.util.List;
 
@@ -25,7 +27,8 @@ public class SecurityConfig {
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
+    private final RedirectOriginCaptureFilter redirectOriginCaptureFilter;
+    
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -68,6 +71,8 @@ public class SecurityConfig {
                 )
 
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(redirectOriginCaptureFilter, OAuth2AuthorizationRequestRedirectFilter.class)
 
                 // H2 콘솔 iframe 허용
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
@@ -85,7 +90,7 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:8080",
                 "http://127.0.0.1:8080",
-                "https://fe-repository-coral.vercel.app"
+                "https://kw-codee.vercel.app"
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));

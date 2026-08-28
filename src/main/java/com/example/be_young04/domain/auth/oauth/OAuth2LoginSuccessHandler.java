@@ -13,6 +13,9 @@ import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+import com.example.be_young04.domain.auth.filter.RedirectOriginCaptureFilter;
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -20,7 +23,12 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final JwtTokenProvider jwtTokenProvider;
 
     @Value("${app.oauth2.redirect-uri}")
-    private String redirectUri;
+    private String defaultRedirectUri;
+
+    private static final List<String> ALLOWED_ORIGIN_PATTERNS = List.of(
+            "http://localhost:5173",
+            "https://kw-codee.vercel.app"
+    );
 
     @Override
     public void onAuthenticationSuccess(
@@ -35,8 +43,20 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
                 user.getUsername()
         );
 
+        String origin = (String) request.getSession()
+                .getAttribute(RedirectOriginCaptureFilter.SESSION_KEY);
+
+        String targetUri = resolveTargetUri(origin);
+
         response.sendRedirect(
-                redirectUri + "?token=" + URLEncoder.encode(serviceAccessToken, StandardCharsets.UTF_8)
+                targetUri + "?token=" + URLEncoder.encode(serviceAccessToken, StandardCharsets.UTF_8)
         );
+    }
+
+    private String resolveTargetUri(String origin) {
+        if (origin != null && ALLOWED_ORIGIN_PATTERNS.contains(origin)) {
+            return origin + "/repository-connect";
+        }
+        return defaultRedirectUri;
     }
 }
