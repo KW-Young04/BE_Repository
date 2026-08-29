@@ -1,9 +1,7 @@
 package com.example.be_young04.domain.git.validator;
 
-import com.example.be_young04.domain.git.config.GitProperties;
 import com.example.be_young04.domain.git.exception.GitOperationException;
 import com.example.be_young04.domain.git.type.GitErrorCode;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -12,25 +10,22 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 @Component
-@RequiredArgsConstructor
 public class GitRepositoryValidator {
 
-    private final GitProperties gitProperties;
-
-    public void validateRepository() {
-        Path repositoryPath = getRepositoryPath();
+    public void validateRepository(Path requestedRepositoryPath) {
+        Path repositoryPath = normalizeRepositoryPath(requestedRepositoryPath);
 
         if (!Files.isDirectory(repositoryPath) || !Files.exists(repositoryPath.resolve(".git"))) {
             throw new GitOperationException(GitErrorCode.NOT_GIT_REPOSITORY);
         }
     }
 
-    public String validateFilePath(String requestedPath) {
+    public String validateFilePath(Path requestedRepositoryPath, String requestedPath) {
         if (requestedPath == null || requestedPath.isBlank()) {
             throw new GitOperationException(GitErrorCode.INVALID_FILE_PATH);
         }
 
-        Path repositoryPath = getRepositoryPath();
+        Path repositoryPath = normalizeRepositoryPath(requestedRepositoryPath);
 
         try {
             Path relativePath = Path.of(requestedPath);
@@ -47,8 +42,13 @@ public class GitRepositoryValidator {
                 throw new GitOperationException(GitErrorCode.INVALID_FILE_PATH);
             }
 
-            if (Files.exists(resolvedPath)
-                    && !resolvedPath.toRealPath().startsWith(repositoryPath.toRealPath())) {
+            Path existingAncestor = resolvedPath;
+            while (existingAncestor != null && !Files.exists(existingAncestor)) {
+                existingAncestor = existingAncestor.getParent();
+            }
+
+            if (existingAncestor == null
+                    || !existingAncestor.toRealPath().startsWith(repositoryPath.toRealPath())) {
                 throw new GitOperationException(GitErrorCode.INVALID_FILE_PATH);
             }
 
@@ -61,8 +61,7 @@ public class GitRepositoryValidator {
         }
     }
 
-    private Path getRepositoryPath() {
-        Path repositoryPath = gitProperties.getRepositoryPath();
+    private Path normalizeRepositoryPath(Path repositoryPath) {
         if (repositoryPath == null) {
             throw new GitOperationException(GitErrorCode.NOT_GIT_REPOSITORY);
         }

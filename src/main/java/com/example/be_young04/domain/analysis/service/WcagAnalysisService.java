@@ -55,7 +55,9 @@ public class WcagAnalysisService {
         Repository repository = dbRepositoryService.getOrCreate(githubId, repositoryUrl);
         Long repositoryId = repository.getRepositoryId();
 
-        RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(githubId, repositoryUrl);
+        RepositoryTreeResponse tree = githubRepositoryService.getRepositoryTree(
+                githubId, repositoryUrl, branchName
+        );
 
         Map<String, String> fileContents = new LinkedHashMap<>();
         Map<String, List<WcagCheckResult>> resultsByWcagId = new LinkedHashMap<>();
@@ -67,7 +69,7 @@ public class WcagAnalysisService {
             if (checkers.isEmpty()) continue;
 
             RepositoryFileResponse file = githubRepositoryService
-                    .getFileContent(githubId, repositoryUrl, node.getPath());
+                    .getFileContent(githubId, repositoryUrl, node.getPath(), branchName);
 
             fileContents.put(node.getPath(), file.getContent());
 

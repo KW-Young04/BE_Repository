@@ -4,8 +4,13 @@ import com.example.be_young04.domain.repository.dto.RepositoryInfo;
 import com.example.be_young04.domain.repository.exception.InvalidGithubUrlException;
 import org.springframework.stereotype.Component;
 
+import java.util.regex.Pattern;
+
 @Component
 public class GithubUrlParser {
+
+    private static final Pattern OWNER_PATTERN = Pattern.compile("[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?");
+    private static final Pattern REPOSITORY_PATTERN = Pattern.compile("[A-Za-z0-9._-]+");
 
     public RepositoryInfo parse(String repositoryUrl) {
         if (repositoryUrl == null || repositoryUrl.isBlank()) {
@@ -27,8 +32,10 @@ public class GithubUrlParser {
             path = path.substring(0, path.length() - 4);
         }
 
-        String[] parts = path.split("/", 2);
-        if (parts.length < 2) {
+        String[] parts = path.split("/", -1);
+        if (parts.length != 2
+                || !OWNER_PATTERN.matcher(parts[0]).matches()
+                || !REPOSITORY_PATTERN.matcher(parts[1]).matches()) {
             throw new InvalidGithubUrlException("저장소 URL 형식이 올바르지 않습니다.");
         }
 

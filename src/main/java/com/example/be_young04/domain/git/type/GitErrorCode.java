@@ -72,6 +72,30 @@ public enum GitErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR,
             "GIT_011",
             "Git 명령 실행이 중단되었습니다."
+    ),
+
+    INVALID_REPOSITORY_URL(
+            HttpStatus.BAD_REQUEST,
+            "GIT_012",
+            "올바르지 않은 GitHub 저장소 URL입니다."
+    ),
+
+    INVALID_BRANCH(
+            HttpStatus.BAD_REQUEST,
+            "GIT_013",
+            "올바르지 않은 Git 브랜치 이름입니다."
+    ),
+
+    CLONE_FAILED(
+            HttpStatus.BAD_GATEWAY,
+            "GIT_014",
+            "GitHub 저장소 clone에 실패했습니다."
+    ),
+
+    WORKSPACE_PREPARATION_FAILED(
+            HttpStatus.INTERNAL_SERVER_ERROR,
+            "GIT_015",
+            "Git workspace를 준비할 수 없습니다."
     );
 
     private final HttpStatus status;

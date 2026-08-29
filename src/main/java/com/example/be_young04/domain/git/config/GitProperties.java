@@ -13,7 +13,7 @@ import java.nio.file.Path;
 @ConfigurationProperties(prefix = "app.git")
 public class GitProperties {
 
-    private Path repositoryPath;
+    private Path workspaceRoot = Path.of("./git-workspaces");
     private int commandTimeoutSeconds = 30;
     private String defaultRemote = "origin";
 }

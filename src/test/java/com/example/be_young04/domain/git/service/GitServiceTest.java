@@ -3,6 +3,7 @@ package com.example.be_young04.domain.git.service;
 import com.example.be_young04.domain.git.config.GitProperties;
 import com.example.be_young04.domain.git.dto.request.GitCommitAndPushRequest;
 import com.example.be_young04.domain.git.dto.request.GitCommitRequest;
+import com.example.be_young04.domain.git.dto.request.GitFileWriteRequest;
 import com.example.be_young04.domain.git.dto.response.GitCommitAndPushResponse;
 import com.example.be_young04.domain.git.dto.response.GitCommitResponse;
 import com.example.be_young04.domain.git.dto.response.GitDiffResponse;
@@ -34,6 +35,7 @@ class GitServiceTest {
     private Path repositoryPath;
     private GitQueryService gitQueryService;
     private GitCommandService gitCommandService;
+    private GitWorkingTreeService gitWorkingTreeService;
     private GitRepositoryValidator gitRepositoryValidator;
 
     @BeforeEach
@@ -48,13 +50,14 @@ class GitServiceTest {
         runGit(repositoryPath, "commit", "-m", "initial commit");
 
         GitProperties gitProperties = new GitProperties();
-        gitProperties.setRepositoryPath(repositoryPath);
+        gitProperties.setWorkspaceRoot(temporaryDirectory.resolve("workspaces"));
         gitProperties.setCommandTimeoutSeconds(10);
         gitProperties.setDefaultRemote("origin");
 
         GitCommandExecutor gitCommandExecutor = new GitCommandExecutor(gitProperties);
-        gitRepositoryValidator = new GitRepositoryValidator(gitProperties);
+        gitRepositoryValidator = new GitRepositoryValidator();
         gitQueryService = new GitQueryService(gitCommandExecutor, gitRepositoryValidator);
+        gitWorkingTreeService = new GitWorkingTreeService(gitRepositoryValidator);
         gitCommandService = new GitCommandService(
                 gitCommandExecutor,
                 gitRepositoryValidator,
@@ -72,9 +75,9 @@ class GitServiceTest {
         );
         Files.writeString(repositoryPath.resolve("new-file.txt"), "new content\n");
 
-        GitStatusResponse status = gitQueryService.getStatus();
-        GitDiffResponse trackedDiff = gitQueryService.getDiff("README.md");
-        GitDiffResponse untrackedDiff = gitQueryService.getDiff("new-file.txt");
+        GitStatusResponse status = gitQueryService.getStatus(repositoryPath);
+        GitDiffResponse trackedDiff = gitQueryService.getDiff(repositoryPath, "README.md");
+        GitDiffResponse untrackedDiff = gitQueryService.getDiff(repositoryPath, "new-file.txt");
 
         assertThat(status.branch()).isEqualTo("main");
         assertThat(status.hasChanges()).isTrue();
@@ -86,7 +89,7 @@ class GitServiceTest {
                 );
         assertThat(trackedDiff.diff()).contains("+second line");
         assertThat(untrackedDiff.diff()).contains("+new content");
-        assertThat(gitQueryService.getBranches().branches()).containsExactly("main");
+        assertThat(gitQueryService.getBranches(repositoryPath).branches()).containsExactly("main");
     }
 
     @Test
@@ -99,7 +102,11 @@ class GitServiceTest {
         Files.writeString(repositoryPath.resolve("feature.txt"), "feature content\n");
 
         GitCommitAndPushResponse response = gitCommandService.commitAndPush(
+                repositoryPath,
+                "test-token",
                 new GitCommitAndPushRequest(
+                        "https://github.com/example/repository",
+                        "main",
                         "feat: add feature file",
                         List.of("feature.txt"),
                         null
@@ -118,7 +125,13 @@ class GitServiceTest {
     @Test
     void commitRejectsRequestWhenSelectedFileHasNoChanges() {
         assertThatThrownBy(() -> gitCommandService.commit(
-                new GitCommitRequest("test: no changes", List.of("README.md"))
+                repositoryPath,
+                new GitCommitRequest(
+                        "https://github.com/example/repository",
+                        "main",
+                        "test: no changes",
+                        List.of("README.md")
+                )
         ))
                 .isInstanceOfSatisfying(GitOperationException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(GitErrorCode.NO_CHANGES)
@@ -127,7 +140,38 @@ class GitServiceTest {
 
     @Test
     void validatorRejectsPathOutsideRepository() {
-        assertThatThrownBy(() -> gitRepositoryValidator.validateFilePath("../outside.txt"))
+        assertThatThrownBy(() -> gitRepositoryValidator.validateFilePath(repositoryPath, "../outside.txt"))
+                .isInstanceOfSatisfying(GitOperationException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(GitErrorCode.INVALID_FILE_PATH)
+                );
+    }
+
+    @Test
+    void writesEditedFileIntoSelectedWorkingTree() {
+        gitWorkingTreeService.writeFile(
+                repositoryPath,
+                new GitFileWriteRequest(
+                        "https://github.com/example/repository",
+                        "main",
+                        "src/new-file.txt",
+                        "edited content\n"
+                )
+        );
+
+        assertThat(repositoryPath.resolve("src/new-file.txt")).hasContent("edited content\n");
+        assertThat(gitQueryService.getStatus(repositoryPath).files())
+                .extracting(file -> file.path(), file -> file.status())
+                .contains(tuple("src/new-file.txt", GitFileStatus.UNTRACKED));
+    }
+
+    @Test
+    void validatorRejectsNewFileBelowSymlinkOutsideRepository() throws IOException {
+        Path outsideDirectory = Files.createDirectory(temporaryDirectory.resolve("outside"));
+        Files.createSymbolicLink(repositoryPath.resolve("outside-link"), outsideDirectory);
+
+        assertThatThrownBy(() -> gitRepositoryValidator.validateFilePath(
+                repositoryPath, "outside-link/new-file.txt"
+        ))
                 .isInstanceOfSatisfying(GitOperationException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(GitErrorCode.INVALID_FILE_PATH)
                 );

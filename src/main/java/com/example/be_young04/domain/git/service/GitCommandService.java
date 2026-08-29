@@ -14,10 +14,10 @@ import com.example.be_young04.domain.git.validator.GitRepositoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
 @Service
@@ -29,74 +29,66 @@ public class GitCommandService {
     private final GitCommandExecutor gitCommandExecutor;
     private final GitRepositoryValidator gitRepositoryValidator;
     private final GitProperties gitProperties;
-    private final ReentrantLock repositoryLock = new ReentrantLock();
 
-    public GitCommitResponse commit(GitCommitRequest request) {
-        repositoryLock.lock();
-        try {
-            return commitInternal(request);
-        } finally {
-            repositoryLock.unlock();
-        }
+    public GitCommitResponse commit(Path repositoryPath, GitCommitRequest request) {
+        return commitInternal(repositoryPath, request.message(), request.files());
     }
 
-    public GitPushResponse push(GitPushRequest request) {
-        repositoryLock.lock();
-        try {
-            return pushInternal(request);
-        } finally {
-            repositoryLock.unlock();
-        }
+    public GitPushResponse push(Path repositoryPath, String accessToken, GitPushRequest request) {
+        return pushInternal(repositoryPath, accessToken, request.remote());
     }
 
-    public GitCommitAndPushResponse commitAndPush(GitCommitAndPushRequest request) {
-        repositoryLock.lock();
-        try {
-            GitCommitResponse commitResponse = commitInternal(
-                    new GitCommitRequest(request.message(), request.files())
-            );
+    public GitCommitAndPushResponse commitAndPush(
+            Path repositoryPath,
+            String accessToken,
+            GitCommitAndPushRequest request
+    ) {
+        GitCommitResponse commitResponse = commitInternal(
+                repositoryPath, request.message(), request.files()
+        );
 
-            GitCommitAndPushResponse.GitOperationResult commitResult =
+        GitCommitAndPushResponse.GitOperationResult commitResult =
+                new GitCommitAndPushResponse.GitOperationResult(
+                        true,
+                        "GIT_COMMIT_SUCCESS",
+                        commitResponse.message(),
+                        commitResponse.commitHash()
+                );
+
+        try {
+            pushInternal(repositoryPath, accessToken, request.remote());
+            return new GitCommitAndPushResponse(
+                    commitResult,
                     new GitCommitAndPushResponse.GitOperationResult(
                             true,
-                            "GIT_COMMIT_SUCCESS",
-                            commitResponse.message(),
-                            commitResponse.commitHash()
-                    );
-
-            try {
-                pushInternal(new GitPushRequest(request.remote()));
-                return new GitCommitAndPushResponse(
-                        commitResult,
-                        new GitCommitAndPushResponse.GitOperationResult(
-                                true,
-                                "GIT_PUSH_SUCCESS",
-                                "원격 저장소 push에 성공했습니다.",
-                                null
-                        )
-                );
-            } catch (GitOperationException e) {
-                return new GitCommitAndPushResponse(
-                        commitResult,
-                        new GitCommitAndPushResponse.GitOperationResult(
-                                false,
-                                e.getErrorCode().getCode(),
-                                e.getMessage(),
-                                null
-                        )
-                );
-            }
-        } finally {
-            repositoryLock.unlock();
+                            "GIT_PUSH_SUCCESS",
+                            "원격 저장소 push에 성공했습니다.",
+                            null
+                    )
+            );
+        } catch (GitOperationException e) {
+            return new GitCommitAndPushResponse(
+                    commitResult,
+                    new GitCommitAndPushResponse.GitOperationResult(
+                            false,
+                            e.getErrorCode().getCode(),
+                            e.getMessage(),
+                            null
+                    )
+            );
         }
     }
 
-    private GitCommitResponse commitInternal(GitCommitRequest request) {
-        gitRepositoryValidator.validateRepository();
-        ensureNoMergeConflicts();
+    private GitCommitResponse commitInternal(
+            Path repositoryPath,
+            String message,
+            List<String> requestedFiles
+    ) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
+        ensureNoMergeConflicts(repositoryPath);
 
-        List<String> files = request.files().stream()
-                .map(gitRepositoryValidator::validateFilePath)
+        List<String> files = requestedFiles.stream()
+                .map(path -> gitRepositoryValidator.validateFilePath(repositoryPath, path))
                 .distinct()
                 .toList();
 
@@ -105,10 +97,14 @@ public class GitCommandService {
         addArguments.add("--");
         addArguments.addAll(files);
 
-        GitCommandResult addResult = gitCommandExecutor.execute(addArguments.toArray(String[]::new));
+        GitCommandResult addResult = gitCommandExecutor.execute(
+                repositoryPath, addArguments.toArray(String[]::new)
+        );
         requireSuccess(addResult, GitErrorCode.COMMIT_FAILED);
 
-        GitCommandResult stagedChanges = gitCommandExecutor.execute("diff", "--cached", "--quiet", "--");
+        GitCommandResult stagedChanges = gitCommandExecutor.execute(
+                repositoryPath, "diff", "--cached", "--quiet", "--"
+        );
         if (stagedChanges.exitCode() == 0) {
             throw new GitOperationException(GitErrorCode.NO_CHANGES);
         }
@@ -116,27 +112,31 @@ public class GitCommandService {
             throw new GitOperationException(GitErrorCode.COMMIT_FAILED, stagedChanges.stderr());
         }
 
-        GitCommandResult commitResult = gitCommandExecutor.execute("commit", "-m", request.message());
+        GitCommandResult commitResult = gitCommandExecutor.execute(
+                repositoryPath, "commit", "-m", message
+        );
         requireSuccess(commitResult, GitErrorCode.COMMIT_FAILED);
 
-        GitCommandResult hashResult = gitCommandExecutor.execute("rev-parse", "HEAD");
+        GitCommandResult hashResult = gitCommandExecutor.execute(repositoryPath, "rev-parse", "HEAD");
         requireSuccess(hashResult, GitErrorCode.COMMIT_FAILED);
 
-        int changedFileCount = getCommittedFileCount();
+        int changedFileCount = getCommittedFileCount(repositoryPath);
         return new GitCommitResponse(
                 true,
                 hashResult.stdout().trim(),
-                request.message(),
+                message,
                 changedFileCount
         );
     }
 
-    private GitPushResponse pushInternal(GitPushRequest request) {
-        gitRepositoryValidator.validateRepository();
+    private GitPushResponse pushInternal(Path repositoryPath, String accessToken, String requestedRemote) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
-        String remote = normalizeRemote(request.remote());
-        String branch = getCurrentBranch();
-        GitCommandResult pushResult = gitCommandExecutor.execute("push", remote, branch);
+        String remote = normalizeRemote(requestedRemote);
+        String branch = getCurrentBranch(repositoryPath);
+        GitCommandResult pushResult = gitCommandExecutor.executeAuthenticated(
+                repositoryPath, accessToken, "push", remote, branch
+        );
 
         if (!pushResult.isSuccess()) {
             throw classifyPushFailure(pushResult);
@@ -145,8 +145,9 @@ public class GitCommandService {
         return new GitPushResponse(true, remote, branch);
     }
 
-    private void ensureNoMergeConflicts() {
+    private void ensureNoMergeConflicts(Path repositoryPath) {
         GitCommandResult conflicts = gitCommandExecutor.execute(
+                repositoryPath,
                 "diff", "--name-only", "--diff-filter=U"
         );
         requireSuccess(conflicts, GitErrorCode.COMMIT_FAILED);
@@ -156,8 +157,9 @@ public class GitCommandService {
         }
     }
 
-    private int getCommittedFileCount() {
+    private int getCommittedFileCount(Path repositoryPath) {
         GitCommandResult changedFiles = gitCommandExecutor.execute(
+                repositoryPath,
                 "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", "HEAD"
         );
         requireSuccess(changedFiles, GitErrorCode.COMMIT_FAILED);
@@ -169,8 +171,10 @@ public class GitCommandService {
                 .count();
     }
 
-    private String getCurrentBranch() {
-        GitCommandResult branchResult = gitCommandExecutor.execute("branch", "--show-current");
+    private String getCurrentBranch(Path repositoryPath) {
+        GitCommandResult branchResult = gitCommandExecutor.execute(
+                repositoryPath, "branch", "--show-current"
+        );
         requireSuccess(branchResult, GitErrorCode.PUSH_FAILED);
 
         String branch = branchResult.stdout().trim();

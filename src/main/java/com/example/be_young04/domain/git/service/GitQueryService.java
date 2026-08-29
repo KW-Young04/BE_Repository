@@ -12,6 +12,7 @@ import com.example.be_young04.domain.git.validator.GitRepositoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,16 +24,17 @@ public class GitQueryService {
     private final GitCommandExecutor gitCommandExecutor;
     private final GitRepositoryValidator gitRepositoryValidator;
 
-    public GitStatusResponse getStatus() {
-        gitRepositoryValidator.validateRepository();
+    public GitStatusResponse getStatus(Path repositoryPath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
         GitCommandResult statusResult = gitCommandExecutor.execute(
-                "-c", "core.quotepath=false", "status", "--porcelain=v1"
+                repositoryPath,
+                "-c", "core.quotepath=false", "status", "--porcelain=v1", "--untracked-files=all"
         );
         requireSuccess(statusResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         Map<String, GitFileStatus> statuses = parseStatuses(statusResult.stdout());
-        Map<String, LineChanges> lineChanges = getLineChanges();
+        Map<String, LineChanges> lineChanges = getLineChanges(repositoryPath);
 
         List<GitFileChangeResponse> files = statuses.entrySet().stream()
                 .map(entry -> {
@@ -46,21 +48,23 @@ public class GitQueryService {
                 })
                 .toList();
 
-        return new GitStatusResponse(getCurrentBranch(), !files.isEmpty(), files);
+        return new GitStatusResponse(getCurrentBranch(repositoryPath), !files.isEmpty(), files);
     }
 
-    public GitDiffResponse getDiff(String filePath) {
-        gitRepositoryValidator.validateRepository();
-        String validatedPath = gitRepositoryValidator.validateFilePath(filePath);
+    public GitDiffResponse getDiff(Path repositoryPath, String filePath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
+        String validatedPath = gitRepositoryValidator.validateFilePath(repositoryPath, filePath);
 
         GitCommandResult diffResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "-c", "core.quotepath=false", "diff", "HEAD", "--", validatedPath
         );
         requireSuccess(diffResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         String diff = diffResult.stdout();
-        if (diff.isBlank() && !isTracked(validatedPath)) {
+        if (diff.isBlank() && !isTracked(repositoryPath, validatedPath)) {
             GitCommandResult untrackedDiff = gitCommandExecutor.execute(
+                    repositoryPath,
                     "-c", "core.quotepath=false", "diff", "--no-index", "--", "/dev/null", validatedPath
             );
             if (untrackedDiff.exitCode() != 0 && untrackedDiff.exitCode() != 1) {
@@ -75,10 +79,11 @@ public class GitQueryService {
         return new GitDiffResponse(validatedPath, diff);
     }
 
-    public GitBranchResponse getBranches() {
-        gitRepositoryValidator.validateRepository();
+    public GitBranchResponse getBranches(Path repositoryPath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
         GitCommandResult branchesResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "branch", "--format=%(refname:short)"
         );
         requireSuccess(branchesResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
@@ -88,11 +93,13 @@ public class GitQueryService {
                 .filter(branch -> !branch.isEmpty())
                 .toList();
 
-        return new GitBranchResponse(getCurrentBranch(), branches);
+        return new GitBranchResponse(getCurrentBranch(repositoryPath), branches);
     }
 
-    private String getCurrentBranch() {
-        GitCommandResult branchResult = gitCommandExecutor.execute("branch", "--show-current");
+    private String getCurrentBranch(Path repositoryPath) {
+        GitCommandResult branchResult = gitCommandExecutor.execute(
+                repositoryPath, "branch", "--show-current"
+        );
         requireSuccess(branchResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         String branch = branchResult.stdout().trim();
@@ -135,8 +142,9 @@ public class GitQueryService {
         return GitFileStatus.MODIFIED;
     }
 
-    private Map<String, LineChanges> getLineChanges() {
+    private Map<String, LineChanges> getLineChanges(Path repositoryPath) {
         GitCommandResult numstatResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "-c", "core.quotepath=false", "diff", "--numstat", "HEAD", "--"
         );
         if (!numstatResult.isSuccess()) {
@@ -169,8 +177,9 @@ public class GitQueryService {
         }
     }
 
-    private boolean isTracked(String filePath) {
+    private boolean isTracked(Path repositoryPath, String filePath) {
         return gitCommandExecutor.execute(
+                repositoryPath,
                 "ls-files", "--error-unmatch", "--", filePath
         ).isSuccess();
     }
