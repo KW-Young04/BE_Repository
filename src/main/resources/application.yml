@@ -35,6 +35,6 @@ spring:
 
 app:
   git:
-    repository-path: ${GIT_REPOSITORY_PATH:.}
+    workspace-root: ${GIT_WORKSPACE_ROOT:./git-workspaces}
     command-timeout-seconds: ${GIT_COMMAND_TIMEOUT_SECONDS:30}
     default-remote: ${GIT_DEFAULT_REMOTE:origin}
