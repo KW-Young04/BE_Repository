@@ -64,6 +64,10 @@ dependencies {
 
     // Cache (WCAG_ITEMS 캐싱용)
     implementation 'org.springframework.boot:spring-boot-starter-cache'
+
+    // AWS Bedrock (Claude Haiku 4.5)
+    implementation platform('software.amazon.awssdk:bom:2.46.7')
+    implementation 'software.amazon.awssdk:bedrockruntime'
 }
 
 tasks.named('test') {
