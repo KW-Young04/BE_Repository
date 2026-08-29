@@ -1,104 +1,104 @@
 package com.example.be_young04.domain.realtime_analysis.service;
 
+import com.example.be_young04.domain.analysis.checker.WcagCheckResult;
+import com.example.be_young04.domain.analysis.checker.WcagChecker;
+import com.example.be_young04.domain.analysis.checker.WcagCheckerRegistry;
 import com.example.be_young04.domain.realtime_analysis.dto.IssueDetailDto;
 import com.example.be_young04.domain.realtime_analysis.dto.RealtimeAnalysisResponse;
-import com.example.be_young04.domain.wcag.repository.WcagItemRepository;
 import com.example.be_young04.domain.wcag.entity.WcagItem;
 import lombok.RequiredArgsConstructor;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class RealtimeAnalysisService {
 
-    private final WcagItemRepository wcagItemRepository;
+    private static final String DEFAULT_FILE_PATH = "index.html";
 
-    // 1. DB 조회를 최소화하기 위해 Spring Cache 적용 (최초 1회 조회 후 메모리 유지)
-    @Cacheable(value = "wcagRules")
-    public Map<String, WcagItem> getCachedWcagRules() {
-        return wcagItemRepository.findAll().stream()
-                .collect(Collectors.toMap(
-                        WcagItem::getSc,                 // Key: SC 번호 (예: "1.1.1")
-                        Function.identity(),             // Value: WcagItem 객체
-                        (existing, replacement) -> existing // 💡 중복 키 발생 시 기존 값 유지 (에러 방지!)
-                ));
-    }
+    private final WcagCheckerRegistry wcagCheckerRegistry;
+    private final WcagItemMetadataService wcagItemMetadataService;
 
-    // 2. 실시간 코드 정적 분석 (DB INSERT 없이 메모리 상에서만 실행)
+    // 실시간 분석은 공통 룰 엔진의 정적 검사만 실행하고 AI 호출이나 DB 저장은 하지 않는다.
     public RealtimeAnalysisResponse analyzeCode(String code, String filePath) {
-        Map<String, WcagItem> rules = getCachedWcagRules();
-        List<IssueDetailDto> issues = new ArrayList<>();
-
         if (code == null || code.isBlank()) {
-            return buildResponse(issues);
+            return buildResponse(List.of());
         }
 
-        Document doc = Jsoup.parse(code);
+        String targetFilePath = filePath == null || filePath.isBlank()
+                ? DEFAULT_FILE_PATH
+                : filePath;
 
-        // [검사 1] WCAG 1.1.1 (Non-text Content): img 태그의 alt 속성 유무
-        WcagItem rule111 = rules.get("1.1.1");
-        if (rule111 != null) {
-            Elements images = doc.select("img");
-            for (Element img : images) {
-                if (!img.hasAttr("alt") || img.attr("alt").trim().isEmpty()) {
-                    issues.add(IssueDetailDto.builder()
-                            .wcagItemId(rule111.getWcagItemId())
-                            .sc(rule111.getSc())
-                            .title(rule111.getTitle())
-                            .levelType(rule111.getLevelType())
-                            .description(rule111.getDescription())
-                            .status("FAIL")
-                            .targetFilePath(filePath != null ? filePath : "index.html")
-                            .targetSelector("img[src=\"" + img.attr("src") + "\"]")
-                            .originalCodeBlock(img.outerHtml())
-                            .suggestion("img 태그에 적절한 대체 텍스트(alt 속성)를 추가하세요.")
-                            .measuredValue("alt 속성 누락")
-                            .thresholdValue("alt 속성 필수 존재")
-                            .build());
-                }
-            }
+        List<WcagCheckResult> violations = wcagCheckerRegistry.getCheckersFor(targetFilePath).stream()
+                .map(checker -> runChecker(checker, targetFilePath, code))
+                .filter(result -> result != null
+                        && result.getJudgeType() == WcagCheckResult.JudgeType.CODE
+                        && Boolean.TRUE.equals(result.getViolated()))
+                .toList();
+
+        if (violations.isEmpty()) {
+            return buildResponse(List.of());
         }
 
-        // [검사 2] WCAG 4.1.2 (Name, Role, Value): button 또는 a 태그의 Accessible Name 유무
-        WcagItem rule412 = rules.get("4.1.2");
-        if (rule412 != null) {
-            Elements buttonsAndLinks = doc.select("button, a");
-            for (Element el : buttonsAndLinks) {
-                boolean hasText = !el.text().trim().isEmpty();
-                boolean hasAriaLabel = el.hasAttr("aria-label") && !el.attr("aria-label").trim().isEmpty();
-
-                if (!hasText && !hasAriaLabel) {
-                    issues.add(IssueDetailDto.builder()
-                            .wcagItemId(rule412.getWcagItemId())
-                            .sc(rule412.getSc())
-                            .title(rule412.getTitle())
-                            .levelType(rule412.getLevelType())
-                            .description(rule412.getDescription())
-                            .status("FAIL")
-                            .targetFilePath(filePath != null ? filePath : "index.html")
-                            .targetSelector(el.tagName())
-                            .originalCodeBlock(el.outerHtml())
-                            .suggestion("버튼 또는 링크 내부에 텍스트를 넣거나 aria-label 속성을 지정하세요.")
-                            .measuredValue("Accessible Name 없음")
-                            .thresholdValue("텍스트 또는 aria-label 필수")
-                            .build());
-                }
+        Map<Long, WcagItem> wcagItems = wcagItemMetadataService.getCachedWcagItems();
+        List<IssueDetailDto> issues = new ArrayList<>();
+        for (WcagCheckResult violation : violations) {
+            WcagItem wcagItem = wcagItems.get(violation.getWcagItemId());
+            if (wcagItem != null) {
+                issues.addAll(toIssueDetails(violation, wcagItem, targetFilePath));
             }
         }
 
         return buildResponse(issues);
+    }
+
+    private WcagCheckResult runChecker(WcagChecker checker, String filePath, String code) {
+        return checker.check(filePath, code);
+    }
+
+    private List<IssueDetailDto> toIssueDetails(
+            WcagCheckResult result,
+            WcagItem wcagItem,
+            String filePath
+    ) {
+        List<WcagCheckResult.IssueLocation> locations = result.getLocations();
+        if (locations == null || locations.isEmpty()) {
+            return List.of(buildIssueDetail(result, wcagItem, filePath, null));
+        }
+
+        return locations.stream()
+                .map(location -> buildIssueDetail(result, wcagItem, filePath, location))
+                .toList();
+    }
+
+    private IssueDetailDto buildIssueDetail(
+            WcagCheckResult result,
+            WcagItem wcagItem,
+            String filePath,
+            WcagCheckResult.IssueLocation location
+    ) {
+        String suggestion = location != null && location.getSuggestion() != null
+                ? location.getSuggestion()
+                : result.getMessage();
+
+        return IssueDetailDto.builder()
+                .wcagItemId(wcagItem.getWcagItemId())
+                .sc(wcagItem.getSc())
+                .title(wcagItem.getTitle())
+                .levelType(wcagItem.getLevelType())
+                .description(wcagItem.getDescription())
+                .status("FAIL")
+                .targetFilePath(filePath)
+                .targetSelector(location != null ? location.getCssSelector() : null)
+                .originalCodeBlock(location != null ? location.getViolatedCode() : null)
+                .suggestion(suggestion)
+                .measuredValue(result.getMessage())
+                .thresholdValue("정적 룰 위반 없음")
+                .build();
     }
 
     private RealtimeAnalysisResponse buildResponse(List<IssueDetailDto> issues) {
