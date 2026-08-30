@@ -138,7 +138,7 @@ gradlew.bat bootRun
 
 서버는 기본적으로 `http://localhost:8080`에서 실행됩니다.
 
-> DB 스키마(`schema.sql`)와 WCAG 마스터 데이터(`wcag.sql`)는 서버 기동 시 자동으로 초기화됩니다.
+> DB 스키마(`schema.sql`)와 WCAG 마스터 데이터(`wcag.sql`)는 기본적으로 서버 기동 시 멱등하게 초기화됩니다. 운영 환경처럼 이미 스키마가 관리되는 곳에서는 `SPRING_SQL_INIT_MODE=never`로 자동 초기화를 비활성화하세요.
 
 ### 4. API 문서 확인 (Swagger)
 http://localhost:8080/swagger-ui/index.html
