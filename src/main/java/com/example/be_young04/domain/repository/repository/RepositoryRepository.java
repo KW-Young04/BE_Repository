@@ -9,6 +9,4 @@ public interface RepositoryRepository extends JpaRepository<Repository, Long> {
 
     Optional<Repository> findByGithubIdAndOwnerNameAndRepositoryName(
             Long githubId, String ownerName, String repositoryName);
-
-    Optional<Repository> findByRepositoryIdAndGithubId(Long repositoryId, Long githubId);
 }
