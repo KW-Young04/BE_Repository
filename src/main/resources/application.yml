@@ -19,7 +19,7 @@ spring:
 
   sql:
     init:
-      mode: always
+      mode: ${SPRING_SQL_INIT_MODE:always}
       schema-locations: classpath:schema.sql
       data-locations: classpath:wcag.sql
 
