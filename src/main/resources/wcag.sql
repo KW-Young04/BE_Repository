@@ -87,8 +87,8 @@ INSERT INTO `WCAG_ITEMS` (`WCAG_ITEM_ID`, `SC`, `TITLE`, `LEVEL_TYPE`, `CATEGORY
 (86, '4.1.2', '이름·역할·값 — HTML 표준 컨트롤 참고', 'A', 'INTERACTION', '표준 HTML 컨트롤은 명세에 따라 사용 시 이미 충족'),
 (87, '4.1.3', '상태 메시지', 'AA', 'INTERACTION', '마크업 언어에서 상태 메시지는 role·속성으로 프로그래밍적 확인 가능 (포커스 불필요)')
 ON DUPLICATE KEY UPDATE
-  `SC` = VALUES(`SC`),
-  `TITLE` = VALUES(`TITLE`),
-  `LEVEL_TYPE` = VALUES(`LEVEL_TYPE`),
-  `CATEGORY` = VALUES(`CATEGORY`),
+  `SC`          = VALUES(`SC`),
+  `TITLE`       = VALUES(`TITLE`),
+  `LEVEL_TYPE`  = VALUES(`LEVEL_TYPE`),
+  `CATEGORY`    = VALUES(`CATEGORY`),
   `DESCRIPTION` = VALUES(`DESCRIPTION`);

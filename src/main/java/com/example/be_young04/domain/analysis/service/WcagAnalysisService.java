@@ -11,20 +11,26 @@ import com.example.be_young04.domain.analysis.entity.AnalysisWcagResult;
 import com.example.be_young04.domain.analysis.repository.AnalysisIssueLocationRepository;
 import com.example.be_young04.domain.analysis.repository.AnalysisIssueRepository;
 import com.example.be_young04.domain.analysis.repository.AnalysisWcagResultRepository;
+import com.example.be_young04.domain.realtime_analysis.dto.IssueDetailDto;
+import com.example.be_young04.domain.realtime_analysis.dto.RealtimeAnalysisResponse;
 import com.example.be_young04.domain.analysis.service.AnalysisPromptBuilder.LocationJudgement;
 import com.example.be_young04.domain.analysis.service.AnalysisPromptBuilder.PromptBuildResult;
 import com.example.be_young04.domain.repository.dto.RepositoryFileResponse;
 import com.example.be_young04.domain.repository.dto.RepositoryTreeResponse;
 import com.example.be_young04.domain.repository.entity.Repository;
+import com.example.be_young04.domain.repository.repository.RepositoryRepository;
 import com.example.be_young04.domain.repository.service.DBRepositoryService;
 import com.example.be_young04.domain.repository.service.GithubRepositoryService;
 import com.example.be_young04.domain.snapshot.dto.PageSnapshot;
 import com.example.be_young04.domain.wcag.entity.WcagItem;
 import com.example.be_young04.domain.wcag.repository.WcagItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -44,6 +50,7 @@ public class WcagAnalysisService {
     private final WcagCheckerRegistry wcagCheckerRegistry;
     private final AnalysisPromptBuilder analysisPromptBuilder;
     private final AiAnalysisClient aiAnalysisClient;
+    private final RepositoryRepository repositoryRepository;
     private final WcagItemRepository wcagItemRepository;
     private final AnalysisWcagResultRepository analysisWcagResultRepository;
     private final AnalysisIssueRepository analysisIssueRepository;
@@ -123,6 +130,104 @@ public class WcagAnalysisService {
         saveResults(repositoryId, finalResults);
 
         return repositoryId;
+    }
+
+    @Transactional(readOnly = true)
+    public RealtimeAnalysisResponse getStoredAnalysis(Long githubId, Long repositoryId) {
+        if (githubId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+
+        repositoryRepository.findByRepositoryIdAndGithubId(repositoryId, githubId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "분석 결과를 찾을 수 없습니다."));
+
+        List<AnalysisWcagResult> wcagResults = analysisWcagResultRepository.findByRepositoryId(repositoryId);
+        List<AnalysisWcagResult> failedResults = wcagResults.stream()
+                .filter(result -> "FAIL".equals(result.getStatus()))
+                .toList();
+
+        if (failedResults.isEmpty()) {
+            return buildStoredResponse(List.of());
+        }
+
+        Map<Long, AnalysisWcagResult> wcagResultById = failedResults.stream()
+                .collect(Collectors.toMap(
+                        AnalysisWcagResult::getAnalysisWcagResultId,
+                        result -> result,
+                        (first, second) -> first,
+                        LinkedHashMap::new
+                ));
+
+        List<AnalysisIssue> issues = analysisIssueRepository.findByAnalysisWcagResultIdIn(
+                new ArrayList<>(wcagResultById.keySet())
+        );
+        if (issues.isEmpty()) {
+            return buildStoredResponse(List.of());
+        }
+
+        Map<Long, AnalysisIssue> issueById = issues.stream()
+                .collect(Collectors.toMap(
+                        AnalysisIssue::getAnalysisIssueId,
+                        issue -> issue,
+                        (first, second) -> first,
+                        LinkedHashMap::new
+                ));
+
+        List<AnalysisIssueLocation> locations = analysisIssueLocationRepository.findByAnalysisIssueIdIn(
+                new ArrayList<>(issueById.keySet())
+        );
+
+        Map<Long, WcagItem> wcagItemById = wcagItemRepository.findAllById(
+                        failedResults.stream().map(AnalysisWcagResult::getWcagItemId).toList()
+                ).stream()
+                .collect(Collectors.toMap(WcagItem::getWcagItemId, item -> item));
+
+        List<IssueDetailDto> details = locations.stream()
+                .map(location -> toStoredIssueDetail(location, issueById, wcagResultById, wcagItemById))
+                .filter(Objects::nonNull)
+                .toList();
+
+        return buildStoredResponse(details);
+    }
+
+    private IssueDetailDto toStoredIssueDetail(
+            AnalysisIssueLocation location,
+            Map<Long, AnalysisIssue> issueById,
+            Map<Long, AnalysisWcagResult> wcagResultById,
+            Map<Long, WcagItem> wcagItemById
+    ) {
+        AnalysisIssue issue = issueById.get(location.getAnalysisIssueId());
+        if (issue == null) return null;
+
+        AnalysisWcagResult wcagResult = wcagResultById.get(issue.getAnalysisWcagResultId());
+        if (wcagResult == null) return null;
+
+        WcagItem wcagItem = wcagItemById.get(wcagResult.getWcagItemId());
+        if (wcagItem == null) return null;
+
+        return IssueDetailDto.builder()
+                .wcagItemId(wcagItem.getWcagItemId())
+                .sc(wcagItem.getSc())
+                .title(wcagItem.getTitle())
+                .levelType(wcagItem.getLevelType())
+                .description(wcagItem.getDescription())
+                .status("FAIL")
+                .targetFilePath(location.getTargetFilePath())
+                .targetSelector(location.getTargetSelector())
+                .originalCodeBlock(location.getOriginalCodeBlock())
+                .suggestion(location.getSuggestion())
+                .measuredValue(location.getMeasuredValue())
+                .thresholdValue(location.getThresholdValue())
+                .build();
+    }
+
+    private RealtimeAnalysisResponse buildStoredResponse(List<IssueDetailDto> issues) {
+        return RealtimeAnalysisResponse.builder()
+                .success(true)
+                .timestamp(LocalDateTime.now())
+                .issueCount(issues.size())
+                .issues(issues)
+                .build();
     }
 
     /**
