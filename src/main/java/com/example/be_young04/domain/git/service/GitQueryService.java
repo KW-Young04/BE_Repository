@@ -12,6 +12,8 @@ import com.example.be_young04.domain.git.validator.GitRepositoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +22,6 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class GitQueryService {
-
     private final GitCommandExecutor gitCommandExecutor;
     private final GitRepositoryValidator gitRepositoryValidator;
 
@@ -63,17 +64,7 @@ public class GitQueryService {
 
         String diff = diffResult.stdout();
         if (diff.isBlank() && !isTracked(repositoryPath, validatedPath)) {
-            GitCommandResult untrackedDiff = gitCommandExecutor.execute(
-                    repositoryPath,
-                    "-c", "core.quotepath=false", "diff", "--no-index", "--", "/dev/null", validatedPath
-            );
-            if (untrackedDiff.exitCode() != 0 && untrackedDiff.exitCode() != 1) {
-                throw new GitOperationException(
-                        GitErrorCode.COMMAND_EXECUTION_FAILED,
-                        untrackedDiff.stderr()
-                );
-            }
-            diff = untrackedDiff.stdout();
+            diff = getUntrackedFileDiff(repositoryPath, validatedPath);
         }
 
         return new GitDiffResponse(validatedPath, diff);
@@ -182,6 +173,35 @@ public class GitQueryService {
                 repositoryPath,
                 "ls-files", "--error-unmatch", "--", filePath
         ).isSuccess();
+    }
+
+    private String getUntrackedFileDiff(Path repositoryPath, String filePath) {
+        Path emptyFile = null;
+        try {
+            emptyFile = Files.createTempFile("git-empty-", ".tmp");
+            GitCommandResult untrackedDiff = gitCommandExecutor.execute(
+                    repositoryPath,
+                    "-c", "core.quotepath=false", "diff", "--no-index", "--",
+                    emptyFile.toString(), filePath
+            );
+            if (untrackedDiff.exitCode() != 0 && untrackedDiff.exitCode() != 1) {
+                throw new GitOperationException(
+                        GitErrorCode.COMMAND_EXECUTION_FAILED,
+                        untrackedDiff.stderr()
+                );
+            }
+            return untrackedDiff.stdout();
+        } catch (IOException exception) {
+            throw new GitOperationException(GitErrorCode.COMMAND_EXECUTION_FAILED, exception);
+        } finally {
+            if (emptyFile != null) {
+                try {
+                    Files.deleteIfExists(emptyFile);
+                } catch (IOException ignored) {
+                    // 임시 diff 기준 파일 삭제 실패는 원래 Git 결과에 영향을 주지 않는다.
+                }
+            }
+        }
     }
 
     private void requireSuccess(GitCommandResult result, GitErrorCode errorCode) {
