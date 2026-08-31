@@ -13,9 +13,13 @@ public class GitExceptionHandler {
     @ExceptionHandler(GitOperationException.class)
     public ResponseEntity<GitErrorResponse> handleGitOperationException(GitOperationException exception) {
         GitErrorCode errorCode = exception.getErrorCode();
+        String message = errorCode.getMessage();
+        if (exception.getGitErrorMessage() != null && !exception.getGitErrorMessage().isBlank()) {
+            message = message + ": " + exception.getGitErrorMessage().trim();
+        }
 
         return ResponseEntity
                 .status(errorCode.getStatus())
-                .body(new GitErrorResponse(false, errorCode.getCode(), errorCode.getMessage()));
+                .body(new GitErrorResponse(false, errorCode.getCode(), message));
     }
 }
