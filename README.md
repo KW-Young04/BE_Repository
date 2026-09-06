@@ -175,6 +175,21 @@ GIT_COMMAND_TIMEOUT_SECONDS=30
 GIT_DEFAULT_REMOTE=origin
 ```
 
+운영 컨테이너에는 Git CLI가 설치되어 있어야 하며, workspace는 컨테이너 재생성 후에도 유지되도록
+Docker volume에 연결합니다.
+
+```yaml
+services:
+  spring:
+    environment:
+      GIT_WORKSPACE_ROOT: /var/lib/codee/git-workspaces
+    volumes:
+      - git-workspaces:/var/lib/codee/git-workspaces
+
+volumes:
+  git-workspaces:
+```
+
 OAuth access token은 Git 명령 인자나 remote URL에 저장하지 않고 해당 clone/push 프로세스의 환경 설정으로만 전달합니다.
 
 ```http
