@@ -11,6 +11,7 @@ public class RepositoryTreeResponse {
     private String owner;
     private String repo;
     private String branch;
+    private Boolean truncated;
     private List<TreeNode> nodes;
 
     @Getter
