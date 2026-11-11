@@ -1,6 +1,7 @@
 package com.example.be_young04.domain.analysis.controller;
 
 import com.example.be_young04.domain.analysis.service.WcagAnalysisService;
+import com.example.be_young04.domain.realtime_analysis.dto.RealtimeAnalysisResponse;
 import com.example.be_young04.domain.snapshot.dto.PageSnapshot;
 import com.example.be_young04.domain.snapshot.dto.SnapshotMetaDto;
 import com.example.be_young04.global.common.response.ApiResponse;
@@ -55,6 +56,26 @@ public class WcagAnalysisController {
                         "200WCAG001",
                         "WCAG 분석 완료",
                         resultId
+                )
+        );
+    }
+
+    @Operation(
+            summary = "저장된 WCAG 접근성 분석 결과 조회",
+            description = "분석 실행 후 저장된 정적/AI WCAG 위반 위치를 조회합니다."
+    )
+    @GetMapping("/{repositoryId}")
+    public ResponseEntity<ApiResponse<RealtimeAnalysisResponse>> getStoredAnalysis(
+            @AuthenticationPrincipal Long githubId,
+            @PathVariable Long repositoryId
+    ) {
+        RealtimeAnalysisResponse response = wcagAnalysisService.getStoredAnalysis(githubId, repositoryId);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "200WCAG002",
+                        "WCAG 분석 결과 조회 완료",
+                        response
                 )
         );
     }

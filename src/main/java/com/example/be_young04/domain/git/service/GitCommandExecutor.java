@@ -10,8 +10,11 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -22,15 +25,50 @@ public class GitCommandExecutor {
 
     private final GitProperties gitProperties;
 
-    public GitCommandResult execute(String... arguments) {
+    public GitCommandResult execute(Path workingDirectory, String... arguments) {
+        return executeInternal(workingDirectory, Map.of(), List.of(), arguments);
+    }
+
+    public GitCommandResult executeAuthenticated(
+            Path workingDirectory,
+            String accessToken,
+            String... arguments
+    ) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new GitOperationException(GitErrorCode.AUTHENTICATION_FAILED);
+        }
+
+        String credentials = Base64.getEncoder().encodeToString(
+                ("x-access-token:" + accessToken).getBytes(StandardCharsets.UTF_8)
+        );
+        String authorizationHeader = "Authorization: Basic " + credentials;
+
+        return executeInternal(
+                workingDirectory,
+                Map.of(
+                        "GIT_TERMINAL_PROMPT", "0",
+                        "GIT_CONFIG_COUNT", "1",
+                        "GIT_CONFIG_KEY_0", "http.extraHeader",
+                        "GIT_CONFIG_VALUE_0", authorizationHeader
+                ),
+                List.of(accessToken, credentials, authorizationHeader),
+                arguments
+        );
+    }
+
+    private GitCommandResult executeInternal(
+            Path workingDirectory,
+            Map<String, String> environment,
+            List<String> sensitiveValues,
+            String... arguments
+    ) {
         List<String> command = new ArrayList<>();
         command.add("git");
         command.addAll(List.of(arguments));
 
         ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.directory(
-                gitProperties.getRepositoryPath().toFile()
-        );
+        processBuilder.directory(workingDirectory.toAbsolutePath().normalize().toFile());
+        processBuilder.environment().putAll(environment);
 
         try {
             Process process = processBuilder.start();
@@ -54,8 +92,8 @@ public class GitCommandExecutor {
 
             return new GitCommandResult(
                     process.exitValue(),
-                    stdout,
-                    stderr
+                    redact(stdout, sensitiveValues),
+                    redact(stderr, sensitiveValues)
             );
         } catch (IOException e) {
             throw new GitOperationException(
@@ -70,6 +108,16 @@ public class GitCommandExecutor {
                 e
             );
         }
+    }
+
+    private String redact(String value, List<String> sensitiveValues) {
+        String redacted = value;
+        for (String sensitiveValue : sensitiveValues) {
+            if (sensitiveValue != null && !sensitiveValue.isBlank()) {
+                redacted = redacted.replace(sensitiveValue, "***");
+            }
+        }
+        return redacted;
     }
 
     private CompletableFuture<String> readAsync(InputStream inputStream) {

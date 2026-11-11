@@ -28,7 +28,7 @@ jobs:
           username: ubuntu
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
-          source: "build/libs/*.jar"
+          source: "build/libs/*.jar,Dockerfile"
           target: "/home/ubuntu/codee/"
 
       - name: Deploy with Docker Compose

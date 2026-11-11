@@ -14,6 +14,9 @@ import com.example.be_young04.domain.git.validator.GitRepositoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,16 +31,17 @@ public class GitQueryService {
     private final GitCommandExecutor gitCommandExecutor;
     private final GitRepositoryValidator gitRepositoryValidator;
 
-    public GitStatusResponse getStatus() {
-        gitRepositoryValidator.validateRepository();
+    public GitStatusResponse getStatus(Path repositoryPath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
         GitCommandResult statusResult = gitCommandExecutor.execute(
-                "-c", "core.quotepath=false", "status", "--porcelain=v1"
+                repositoryPath,
+                "-c", "core.quotepath=false", "status", "--porcelain=v1", "--untracked-files=all"
         );
         requireSuccess(statusResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         Map<String, GitFileStatus> statuses = parseStatuses(statusResult.stdout());
-        Map<String, LineChanges> lineChanges = getLineChanges();
+        Map<String, LineChanges> lineChanges = getLineChanges(repositoryPath);
 
         List<GitFileChangeResponse> files = statuses.entrySet().stream()
                 .map(entry -> {
@@ -51,39 +55,32 @@ public class GitQueryService {
                 })
                 .toList();
 
-        return new GitStatusResponse(getCurrentBranch(), !files.isEmpty(), files);
+        return new GitStatusResponse(getCurrentBranch(repositoryPath), !files.isEmpty(), files);
     }
 
-    public GitDiffResponse getDiff(String filePath) {
-        gitRepositoryValidator.validateRepository();
-        String validatedPath = gitRepositoryValidator.validateFilePath(filePath);
+    public GitDiffResponse getDiff(Path repositoryPath, String filePath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
+        String validatedPath = gitRepositoryValidator.validateFilePath(repositoryPath, filePath);
 
         GitCommandResult diffResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "-c", "core.quotepath=false", "diff", "HEAD", "--", validatedPath
         );
         requireSuccess(diffResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         String diff = diffResult.stdout();
-        if (diff.isBlank() && !isTracked(validatedPath)) {
-            GitCommandResult untrackedDiff = gitCommandExecutor.execute(
-                    "-c", "core.quotepath=false", "diff", "--no-index", "--", "/dev/null", validatedPath
-            );
-            if (untrackedDiff.exitCode() != 0 && untrackedDiff.exitCode() != 1) {
-                throw new GitOperationException(
-                        GitErrorCode.COMMAND_EXECUTION_FAILED,
-                        untrackedDiff.stderr()
-                );
-            }
-            diff = untrackedDiff.stdout();
+        if (diff.isBlank() && !isTracked(repositoryPath, validatedPath)) {
+            diff = getUntrackedFileDiff(repositoryPath, validatedPath);
         }
 
         return new GitDiffResponse(validatedPath, diff);
     }
 
-    public GitBranchResponse getBranches() {
-        gitRepositoryValidator.validateRepository();
+    public GitBranchResponse getBranches(Path repositoryPath) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
         GitCommandResult branchesResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "branch", "--format=%(refname:short)"
         );
         requireSuccess(branchesResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
@@ -93,16 +90,17 @@ public class GitQueryService {
                 .filter(branch -> !branch.isEmpty())
                 .toList();
 
-        return new GitBranchResponse(getCurrentBranch(), branches);
+        return new GitBranchResponse(getCurrentBranch(repositoryPath), branches);
     }
 
-    public GitGraphResponse getGraph(int limit) {
-        gitRepositoryValidator.validateRepository();
+    public GitGraphResponse getGraph(Path repositoryPath, int limit) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
 
         int safeLimit = Math.max(1, Math.min(limit, MAX_GRAPH_COMMITS));
 
         // 필드는 US(0x1F), 커밋은 RS(0x1E)로 구분해 커밋 메시지에 포함될 수 있는 개행/탭과 충돌을 피한다.
         GitCommandResult logResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "-c", "core.quotepath=false",
                 "log", "--all", "--date-order", "--decorate=short",
                 "--pretty=format:%H%x1f%h%x1f%an%x1f%s%x1f%D%x1e",
@@ -111,7 +109,7 @@ public class GitQueryService {
         requireSuccess(logResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         List<GitCommitLogResponse> commits = parseCommitLog(logResult.stdout());
-        return new GitGraphResponse(getCurrentBranch(), commits);
+        return new GitGraphResponse(getCurrentBranch(repositoryPath), commits);
     }
 
     private List<GitCommitLogResponse> parseCommitLog(String output) {
@@ -163,8 +161,10 @@ public class GitQueryService {
         return commits;
     }
 
-    private String getCurrentBranch() {
-        GitCommandResult branchResult = gitCommandExecutor.execute("branch", "--show-current");
+    private String getCurrentBranch(Path repositoryPath) {
+        GitCommandResult branchResult = gitCommandExecutor.execute(
+                repositoryPath, "branch", "--show-current"
+        );
         requireSuccess(branchResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
 
         String branch = branchResult.stdout().trim();
@@ -207,8 +207,9 @@ public class GitQueryService {
         return GitFileStatus.MODIFIED;
     }
 
-    private Map<String, LineChanges> getLineChanges() {
+    private Map<String, LineChanges> getLineChanges(Path repositoryPath) {
         GitCommandResult numstatResult = gitCommandExecutor.execute(
+                repositoryPath,
                 "-c", "core.quotepath=false", "diff", "--numstat", "HEAD", "--"
         );
         if (!numstatResult.isSuccess()) {
@@ -241,10 +242,40 @@ public class GitQueryService {
         }
     }
 
-    private boolean isTracked(String filePath) {
+    private boolean isTracked(Path repositoryPath, String filePath) {
         return gitCommandExecutor.execute(
+                repositoryPath,
                 "ls-files", "--error-unmatch", "--", filePath
         ).isSuccess();
+    }
+
+    private String getUntrackedFileDiff(Path repositoryPath, String filePath) {
+        Path emptyFile = null;
+        try {
+            emptyFile = Files.createTempFile("git-empty-", ".tmp");
+            GitCommandResult untrackedDiff = gitCommandExecutor.execute(
+                    repositoryPath,
+                    "-c", "core.quotepath=false", "diff", "--no-index", "--",
+                    emptyFile.toString(), filePath
+            );
+            if (untrackedDiff.exitCode() != 0 && untrackedDiff.exitCode() != 1) {
+                throw new GitOperationException(
+                        GitErrorCode.COMMAND_EXECUTION_FAILED,
+                        untrackedDiff.stderr()
+                );
+            }
+            return untrackedDiff.stdout();
+        } catch (IOException exception) {
+            throw new GitOperationException(GitErrorCode.COMMAND_EXECUTION_FAILED, exception);
+        } finally {
+            if (emptyFile != null) {
+                try {
+                    Files.deleteIfExists(emptyFile);
+                } catch (IOException ignored) {
+                    // 임시 diff 기준 파일 삭제 실패는 원래 Git 결과에 영향을 주지 않는다.
+                }
+            }
+        }
     }
 
     private void requireSuccess(GitCommandResult result, GitErrorCode errorCode) {

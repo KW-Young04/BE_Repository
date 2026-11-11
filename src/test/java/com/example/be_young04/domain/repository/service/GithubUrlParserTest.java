@@ -21,5 +21,7 @@ class GithubUrlParserTest {
     @Test
     void parseRejectsInvalidGithubUrl() {
         assertThrows(InvalidGithubUrlException.class, () -> parser.parse("https://example.com/foo/bar"));
+        assertThrows(InvalidGithubUrlException.class, () -> parser.parse("https://github.com/foo/bar/issues"));
+        assertThrows(InvalidGithubUrlException.class, () -> parser.parse("https://github.com/foo/../bar"));
     }
 }

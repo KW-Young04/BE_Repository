@@ -138,7 +138,7 @@ gradlew.bat bootRun
 
 서버는 기본적으로 `http://localhost:8080`에서 실행됩니다.
 
-> DB 스키마(`schema.sql`)와 WCAG 마스터 데이터(`wcag.sql`)는 서버 기동 시 자동으로 초기화됩니다.
+> DB 스키마(`schema.sql`)와 WCAG 마스터 데이터(`wcag.sql`)는 기본적으로 서버 기동 시 멱등하게 초기화됩니다. 운영 환경처럼 이미 스키마가 관리되는 곳에서는 `SPRING_SQL_INIT_MODE=never`로 자동 초기화를 비활성화하세요.
 
 ### 4. API 문서 확인 (Swagger)
 http://localhost:8080/swagger-ui/index.html
@@ -155,16 +155,74 @@ OpenAPI 명세(JSON): `http://localhost:8080/v3/api-docs`
 | GET | `/api/repositories/file` | 저장소 내 특정 파일 조회 |
 | POST | `/api/snapshots` (multipart) | 렌더링 스냅샷(스크린샷) 업로드 |
 | POST | `/api/analysis/wcag` (multipart) | WCAG 분석 실행 및 결과 DB 저장 |
-| GET | `/api/git/status` | Git 변경 파일 및 현재 브랜치 조회 |
-| GET | `/api/git/diff` | 선택 파일 diff 조회 |
-| GET | `/api/git/branches` | 로컬 브랜치 목록 조회 |
-| POST | `/api/git/commit` | 선택 파일 커밋 |
-| POST | `/api/git/push` | 현재 브랜치 push |
-| POST | `/api/git/commit-and-push` | 선택 파일 커밋 후 push |
+| GET | `/api/git/status` | 사용자 저장소 workspace의 변경 파일 및 현재 브랜치 조회 |
+| GET | `/api/git/diff` | 사용자 저장소 workspace의 선택 파일 diff 조회 |
+| GET | `/api/git/branches` | 사용자 저장소 workspace의 로컬 브랜치 목록 조회 |
+| PUT | `/api/git/file` | 사용자 저장소 workspace에 편집한 파일 저장 |
+| POST | `/api/git/commit` | 사용자 저장소 workspace의 선택 파일 커밋 |
+| POST | `/api/git/push` | 사용자 OAuth 권한으로 현재 브랜치 push |
+| POST | `/api/git/commit-and-push` | 선택 파일 커밋 후 사용자 OAuth 권한으로 push |
 
 > 세부 요청/응답 스펙은 Swagger UI에서 실시간으로 확인 가능합니다.
 
-Git API가 작업할 저장소는 `GIT_REPOSITORY_PATH` 환경변수로 지정합니다. 지정하지 않으면 서버 실행 위치를 사용합니다.
+Git API 요청에는 대상 `repositoryUrl`과 `branchName`을 전달해야 합니다. GET API는 query parameter로,
+PUT/POST API는 request body로 전달합니다. 최초 요청 시 `GIT_WORKSPACE_ROOT` 아래에 사용자·저장소·브랜치별로
+저장소를 clone하고 이후 요청에서는 같은 workspace를 재사용합니다. 기본 workspace 경로는 `./git-workspaces`입니다.
+
+```properties
+GIT_WORKSPACE_ROOT=/var/lib/codee/git-workspaces
+GIT_COMMAND_TIMEOUT_SECONDS=30
+GIT_DEFAULT_REMOTE=origin
+```
+
+운영 컨테이너에는 Git CLI가 설치되어 있어야 하며, workspace는 컨테이너 재생성 후에도 유지되도록
+Docker volume에 연결합니다.
+
+```yaml
+services:
+  spring:
+    environment:
+      GIT_WORKSPACE_ROOT: /var/lib/codee/git-workspaces
+    volumes:
+      - git-workspaces:/var/lib/codee/git-workspaces
+
+volumes:
+  git-workspaces:
+```
+
+OAuth access token은 Git 명령 인자나 remote URL에 저장하지 않고 해당 clone/push 프로세스의 환경 설정으로만 전달합니다.
+
+```http
+GET /api/git/status?repositoryUrl=https://github.com/owner/repository&branchName=main
+Authorization: Bearer {CODEE_JWT}
+```
+
+```http
+PUT /api/git/file
+Authorization: Bearer {CODEE_JWT}
+Content-Type: application/json
+
+{
+  "repositoryUrl": "https://github.com/owner/repository",
+  "branchName": "main",
+  "path": "src/components/Button.tsx",
+  "content": "export function Button() { /* ... */ }"
+}
+```
+
+```http
+POST /api/git/commit-and-push
+Authorization: Bearer {CODEE_JWT}
+Content-Type: application/json
+
+{
+  "repositoryUrl": "https://github.com/owner/repository",
+  "branchName": "main",
+  "message": "fix: improve button accessibility",
+  "files": ["src/components/Button.tsx"],
+  "remote": "origin"
+}
+```
 
 ## 📁 폴더 구조 (Folder Structure)
 domain/

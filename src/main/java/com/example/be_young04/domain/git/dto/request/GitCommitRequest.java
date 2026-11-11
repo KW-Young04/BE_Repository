@@ -8,6 +8,12 @@ import java.util.List;
 
 public record GitCommitRequest(
 
+        @NotBlank(message = "저장소 URL은 필수입니다.")
+        String repositoryUrl,
+
+        @NotBlank(message = "브랜치 이름은 필수입니다.")
+        String branchName,
+
         @NotBlank(message = "커밋 메시지는 필수입니다.")
         @Size(max = 200, message = "커밋 메시지는 200자 이하여야 합니다.")
         String message,

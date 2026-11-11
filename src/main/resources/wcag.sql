@@ -1,5 +1,3 @@
-DELETE FROM `WCAG_ITEMS`;
-
 INSERT INTO `WCAG_ITEMS` (`WCAG_ITEM_ID`, `SC`, `TITLE`, `LEVEL_TYPE`, `CATEGORY`, `DESCRIPTION`) VALUES
 (1, '1.1.1', '이미지 대체 텍스트 — 시간 기반 미디어', 'A', 'INTERACTION', 'video·audio인 비텍스트 콘텐츠에 설명적 식별 텍스트 대안 제공'),
 (2, '1.1.1', '이미지 대체 텍스트 — 순수 장식', 'A', 'INTERACTION', '장식·포맷팅·비표시 비텍스트 콘텐츠는 보조 기술이 무시할 수 있게 구현 (alt="" 등)'),
@@ -87,4 +85,10 @@ INSERT INTO `WCAG_ITEMS` (`WCAG_ITEM_ID`, `SC`, `TITLE`, `LEVEL_TYPE`, `CATEGORY
 (84, '3.3.8', '접근 가능한 인증(최소) — 대안 인증 방법', 'AA', 'UX', '인지 기능 테스트에 의존하지 않는 다른 인증 방법 제공'),
 (85, '3.3.8', '접근 가능한 인증(최소) — 객체 인식', 'AA', 'UX', '객체를 인식하는 인지 테스트 (CAPTCHA 등)'),
 (86, '4.1.2', '이름·역할·값 — HTML 표준 컨트롤 참고', 'A', 'INTERACTION', '표준 HTML 컨트롤은 명세에 따라 사용 시 이미 충족'),
-(87, '4.1.3', '상태 메시지', 'AA', 'INTERACTION', '마크업 언어에서 상태 메시지는 role·속성으로 프로그래밍적 확인 가능 (포커스 불필요)');
+(87, '4.1.3', '상태 메시지', 'AA', 'INTERACTION', '마크업 언어에서 상태 메시지는 role·속성으로 프로그래밍적 확인 가능 (포커스 불필요)')
+ON DUPLICATE KEY UPDATE
+  `SC`          = VALUES(`SC`),
+  `TITLE`       = VALUES(`TITLE`),
+  `LEVEL_TYPE`  = VALUES(`LEVEL_TYPE`),
+  `CATEGORY`    = VALUES(`CATEGORY`),
+  `DESCRIPTION` = VALUES(`DESCRIPTION`);

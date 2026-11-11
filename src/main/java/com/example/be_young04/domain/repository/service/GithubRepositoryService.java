@@ -1,8 +1,11 @@
 package com.example.be_young04.domain.repository.service;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -21,6 +24,11 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class GithubRepositoryService {
+    private static final Set<String> BINARY_EXTENSIONS = Set.of(
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp",
+            ".woff", ".woff2", ".ttf", ".otf", ".eot",
+            ".pdf", ".zip", ".gz", ".tar", ".mp4", ".webm", ".mp3", ".wav"
+    );
 
     private final RestClient githubRestClient;
     private final GithubUrlParser githubUrlParser;
@@ -62,6 +70,7 @@ public class GithubRepositoryService {
                 .owner(repositoryInfo.getOwner())
                 .repo(repositoryInfo.getRepo())
                 .branch(ref)
+                .truncated(Boolean.TRUE.equals(treeResponse.getTruncated()))
                 .nodes(nodes)
                 .build();
     }
@@ -80,7 +89,8 @@ public class GithubRepositoryService {
         String ref = normalizeBranchName(branchName);
         String accessToken = getAccessToken(githubId);
 
-        String[] pathSegments = filePath.split("/");
+        String safeFilePath = validateRepositoryFilePath(filePath);
+        String[] pathSegments = safeFilePath.split("/");
 
         GithubContentResponse contentResponse = githubRestClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -96,14 +106,18 @@ public class GithubRepositoryService {
             throw new IllegalStateException("파일 내용을 불러오지 못했습니다.");
         }
 
-        String decodedContent = decodeBase64Content(contentResponse.getContent());
+        DecodedFileContent decoded = decodeGithubContent(
+                contentResponse.getContent(),
+                contentResponse.getPath()
+        );
 
         return RepositoryFileResponse.builder()
                 .owner(repositoryInfo.getOwner())
                 .repo(repositoryInfo.getRepo())
                 .branch(ref)
                 .path(contentResponse.getPath())
-                .content(decodedContent)
+                .content(decoded.content())
+                .encoding(decoded.encoding())
                 .build();
     }
 
@@ -111,14 +125,59 @@ public class GithubRepositoryService {
         return githubRepositoryClient.getRecentRepositories(getAccessToken(githubId));
     }
 
-    private String decodeBase64Content(String content) {
+    private DecodedFileContent decodeGithubContent(String content, String path) {
         if (content == null || content.isBlank()) {
-            return "";
+            return new DecodedFileContent("", "utf-8");
         }
 
         String normalized = content.replace("\n", "");
         byte[] decoded = Base64.getDecoder().decode(normalized);
-        return new String(decoded, StandardCharsets.UTF_8);
+        if (isBinaryPath(path)) {
+            return new DecodedFileContent(normalized, "base64");
+        }
+
+        try {
+            String text = StandardCharsets.UTF_8
+                    .newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(decoded))
+                    .toString();
+            return new DecodedFileContent(text, "utf-8");
+        } catch (CharacterCodingException e) {
+            return new DecodedFileContent(normalized, "base64");
+        }
+    }
+
+    private boolean isBinaryPath(String path) {
+        if (path == null) return false;
+        String lower = path.toLowerCase();
+        return BINARY_EXTENSIONS.stream().anyMatch(lower::endsWith);
+    }
+
+    private String validateRepositoryFilePath(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("파일 경로가 비어 있습니다.");
+        }
+
+        String normalized = filePath.trim();
+        if (normalized.length() > 1024 || normalized.contains("\\") || normalized.contains("\0")) {
+            throw new IllegalArgumentException("파일 경로 형식이 올바르지 않습니다.");
+        }
+        if (normalized.startsWith("/") || normalized.matches("^[A-Za-z]:.*")) {
+            throw new IllegalArgumentException("절대 경로는 사용할 수 없습니다.");
+        }
+
+        for (String segment : normalized.split("/")) {
+            if (segment.isBlank() || segment.equals(".") || segment.equals("..")) {
+                throw new IllegalArgumentException("파일 경로에 허용되지 않는 구간이 포함되어 있습니다.");
+            }
+        }
+
+        return normalized;
+    }
+
+    private record DecodedFileContent(String content, String encoding) {
     }
 
     public GithubRepositoryResponse getRepositoryInfo(Long githubId, String repositoryUrl) {
