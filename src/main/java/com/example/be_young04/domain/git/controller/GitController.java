@@ -80,6 +80,21 @@ public class GitController {
         );
     }
 
+    @GetMapping("/graph")
+    public GitGraphResponse getGraph(
+            @AuthenticationPrincipal Long githubId,
+            @RequestParam String repositoryUrl,
+            @RequestParam String branchName,
+            @RequestParam(defaultValue = "100") int limit
+    ) {
+        return gitWorkspaceManager.withWorkspace(
+                githubId,
+                repositoryUrl,
+                branchName,
+                workspace -> gitQueryService.getGraph(workspace.repositoryPath(), limit)
+        );
+    }
+
     @PostMapping("/commit")
     public GitCommitResponse commit(
             @AuthenticationPrincipal Long githubId,

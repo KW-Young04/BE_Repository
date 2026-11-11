@@ -1,8 +1,10 @@
 package com.example.be_young04.domain.git.service;
 
 import com.example.be_young04.domain.git.dto.response.GitBranchResponse;
+import com.example.be_young04.domain.git.dto.response.GitCommitLogResponse;
 import com.example.be_young04.domain.git.dto.response.GitDiffResponse;
 import com.example.be_young04.domain.git.dto.response.GitFileChangeResponse;
+import com.example.be_young04.domain.git.dto.response.GitGraphResponse;
 import com.example.be_young04.domain.git.dto.response.GitStatusResponse;
 import com.example.be_young04.domain.git.exception.GitOperationException;
 import com.example.be_young04.domain.git.service.model.GitCommandResult;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,9 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class GitQueryService {
+
+    private static final int MAX_GRAPH_COMMITS = 200;
+
     private final GitCommandExecutor gitCommandExecutor;
     private final GitRepositoryValidator gitRepositoryValidator;
 
@@ -85,6 +91,74 @@ public class GitQueryService {
                 .toList();
 
         return new GitBranchResponse(getCurrentBranch(repositoryPath), branches);
+    }
+
+    public GitGraphResponse getGraph(Path repositoryPath, int limit) {
+        gitRepositoryValidator.validateRepository(repositoryPath);
+
+        int safeLimit = Math.max(1, Math.min(limit, MAX_GRAPH_COMMITS));
+
+        // 필드는 US(0x1F), 커밋은 RS(0x1E)로 구분해 커밋 메시지에 포함될 수 있는 개행/탭과 충돌을 피한다.
+        GitCommandResult logResult = gitCommandExecutor.execute(
+                repositoryPath,
+                "-c", "core.quotepath=false",
+                "log", "--all", "--date-order", "--decorate=short",
+                "--pretty=format:%H%x1f%h%x1f%an%x1f%s%x1f%D%x1e",
+                "-n", String.valueOf(safeLimit)
+        );
+        requireSuccess(logResult, GitErrorCode.COMMAND_EXECUTION_FAILED);
+
+        List<GitCommitLogResponse> commits = parseCommitLog(logResult.stdout());
+        return new GitGraphResponse(getCurrentBranch(repositoryPath), commits);
+    }
+
+    private List<GitCommitLogResponse> parseCommitLog(String output) {
+        List<GitCommitLogResponse> commits = new ArrayList<>();
+
+        for (String record : output.split("\u001e")) {
+            String entry = record.strip();
+            if (entry.isEmpty()) {
+                continue;
+            }
+
+            String[] fields = entry.split("\u001f", -1);
+            if (fields.length < 4) {
+                continue;
+            }
+
+            String hash = fields[0];
+            String shortHash = fields[1];
+            String author = fields[2];
+            String message = fields[3];
+            String decoration = fields.length > 4 ? fields[4] : "";
+
+            boolean head = false;
+            List<String> refs = new ArrayList<>();
+            for (String rawRef : decoration.split(",")) {
+                String ref = rawRef.strip();
+                if (ref.isEmpty()) {
+                    continue;
+                }
+                if (ref.equals("HEAD")) {
+                    head = true;
+                    continue;
+                }
+                if (ref.startsWith("HEAD -> ")) {
+                    head = true;
+                    ref = ref.substring("HEAD -> ".length()).strip();
+                }
+                if (ref.startsWith("tag: ")) {
+                    continue;
+                }
+                if (!ref.isEmpty()) {
+                    refs.add(ref);
+                }
+            }
+
+            commits.add(new GitCommitLogResponse(hash, shortHash, author, message, refs, head));
+        }
+
+        return commits;
     }
 
     private String getCurrentBranch(Path repositoryPath) {
