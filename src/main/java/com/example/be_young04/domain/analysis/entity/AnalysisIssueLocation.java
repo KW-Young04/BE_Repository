@@ -1,11 +1,16 @@
 package com.example.be_young04.domain.analysis.entity;
 
-import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ANALYSIS_ISSUES_LOCATIONS")
@@ -69,6 +74,17 @@ public class AnalysisIssueLocation {
         this.suggestionDetail = suggestionDetail;
         this.status = "OPEN";
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateCodeFix(String suggestionDetail) {
+        this.suggestionType = "CODE_FIX";
+        this.suggestionDetail = suggestionDetail;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void markModified() {
+        this.status = "MODIFY";
         this.updatedAt = LocalDateTime.now();
     }
 }
