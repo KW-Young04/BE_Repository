@@ -50,7 +50,8 @@ public final class CodeFixDto {
             String filePath,
             List<Long> appliedLocationIds,
             List<FixItem> failed,
-            RealtimeAnalysisResponse remainingIssues
+            RealtimeAnalysisResponse remainingIssues,
+            String content
     ) {
     }
 }
