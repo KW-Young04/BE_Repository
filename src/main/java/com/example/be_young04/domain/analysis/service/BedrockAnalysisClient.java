@@ -23,6 +23,7 @@ public class BedrockAnalysisClient implements AiAnalysisClient {
     private String modelId;
 
     private BedrockRuntimeClient client;
+    private static final int MAX_OUTPUT_TOKENS = 8192;
 
     @PostConstruct
     private void init() {
@@ -59,6 +60,7 @@ public class BedrockAnalysisClient implements AiAnalysisClient {
         ConverseRequest request = ConverseRequest.builder()
                 .modelId(modelId)
                 .messages(List.of(message))
+                .inferenceConfig(InferenceConfiguration.builder().maxTokens(MAX_OUTPUT_TOKENS).build())
                 .build();
 
         int maxRetry = 3;
@@ -66,6 +68,9 @@ public class BedrockAnalysisClient implements AiAnalysisClient {
         for (int attempt = 1; attempt <= maxRetry; attempt++) {
             try {
                 ConverseResponse response = client.converse(request);
+                if (response.stopReason() == StopReason.MAX_TOKENS) {
+                    log.warn("[Bedrock] 출력 한도({} tokens)에 도달해 응답이 잘렸습니다.", MAX_OUTPUT_TOKENS);
+                }
                 return extractText(response);
 
             } catch (ThrottlingException e) {

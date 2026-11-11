@@ -33,16 +33,17 @@ import java.util.stream.Collectors;
 
 /**
  * AI 코드 수정: 위반 위치별 {before, after} 패치를 생성하고, 사용자가 승인한 것만 작업 파일에 적용한다.
- * - 생성: 파일 단위 1회 호출 (MAX_LOCATIONS_PER_CALL 초과 시에만 분할)
+ * - 생성: 파일 단위 호출 (MAX_LOCATIONS_PER_CALL 초과 시 분할)
  * - 검증: before가 현재 파일에 정확히 1회 등장 + 다른 수정안과 범위 비겹침
- * - 부분 실패 허용: 검증 실패 위치만 FAILED, 나머지는 정상 저장
+ * - 부분 실패 허용: 검증 실패 위치만 FAILED(원인별 사유 포함), 나머지는 정상 저장
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CodeFixService {
 
-    private static final int MAX_LOCATIONS_PER_CALL = 30;
+    // 위치마다 before/after 코드가 출력되므로 응답이 길어진다. 출력 잘림을 막기 위해 배치를 작게 유지한다.
+    private static final int MAX_LOCATIONS_PER_CALL = 10;
 
     private final AiAnalysisClient aiAnalysisClient;
     private final GitWorkspaceManager gitWorkspaceManager;
@@ -60,6 +61,10 @@ public class CodeFixService {
     }
 
     private record RawFix(String before, String after) {
+    }
+
+    // 배치 단위 AI 호출 결과. error가 있으면 그 배치의 모든 위치에 같은 실패 사유를 표시한다.
+    private record BatchResult(Map<String, RawFix> fixes, String error) {
     }
 
     // ===================== 생성 =====================
@@ -81,43 +86,60 @@ public class CodeFixService {
         );
 
         Map<String, RawFix> rawFixes = new HashMap<>();
+        Map<String, String> batchErrors = new HashMap<>();
         for (int i = 0; i < targets.size(); i += MAX_LOCATIONS_PER_CALL) {
             List<FixTarget> batch = targets.subList(i, Math.min(i + MAX_LOCATIONS_PER_CALL, targets.size()));
-            rawFixes.putAll(requestFixes(batch, request.filePath(), content));
+            BatchResult result = requestFixes(batch, request.filePath(), content);
+            rawFixes.putAll(result.fixes());
+            if (result.error() != null) {
+                batch.forEach(t -> batchErrors.put(t.promptId(), result.error()));
+            }
         }
 
-        return new GenerateResponse(request.filePath(), validateAndSave(targets, rawFixes, content));
+        return new GenerateResponse(request.filePath(), validateAndSave(targets, rawFixes, batchErrors, content));
     }
 
-    private Map<String, RawFix> requestFixes(List<FixTarget> batch, String filePath, String content) {
+    private BatchResult requestFixes(List<FixTarget> batch, String filePath, String content) {
         String response = aiAnalysisClient.analyze(buildPrompt(batch, filePath, content), List.of());
         Set<String> validIds = batch.stream().map(FixTarget::promptId).collect(Collectors.toSet());
         Map<String, RawFix> result = new HashMap<>();
 
-        try {
-            String json = response.replaceAll("```json", "").replaceAll("```", "").trim();
-            int start = json.indexOf('[');
-            int end = json.lastIndexOf(']');
-            if (start < 0 || end <= start) {
-                log.warn("[CodeFix] JSON 배열 없음: {}", response);
-                return result;
-            }
+        if (response == null || response.isBlank()) {
+            return new BatchResult(result, "AI 응답이 비어 있습니다. 다시 시도해 주세요.");
+        }
 
+        // 코드 펜스는 응답 맨 앞/뒤만 제거한다 (before/after 코드 안의 ```까지 지우지 않도록).
+        String json = response.trim()
+                .replaceFirst("^```(?:json)?\\s*", "")
+                .replaceFirst("\\s*```$", "");
+        int start = json.indexOf('[');
+        int end = json.lastIndexOf(']');
+        if (start < 0 || end <= start) {
+            // Bedrock 클라이언트는 실패 시 오류 문장을 반환하므로 그대로 사유로 보여준다.
+            log.warn("[CodeFix] JSON 배열 없음: {}", response);
+            return new BatchResult(result, "AI 호출에 실패했습니다: " + abbreviate(response));
+        }
+
+        try {
             for (JsonNode node : objectMapper.readTree(json.substring(start, end + 1))) {
                 String id = node.path("locationId").asText(null);
-                if (id == null || !validIds.contains(id)) continue;   // 환각 locationId 무시
+                if (id == null) continue;
+                id = id.trim();
+                if (!validIds.contains(id)) continue;   // 환각 locationId 무시
                 result.putIfAbsent(id, new RawFix(
                         node.hasNonNull("before") ? node.get("before").asText() : null,
                         node.hasNonNull("after") ? node.get("after").asText() : null
                 ));
             }
         } catch (Exception e) {
-            log.warn("[CodeFix] 응답 파싱 실패: {}", e.getMessage());
+            log.warn("[CodeFix] 응답 파싱 실패: {} / 응답 길이={}", e.getMessage(), response.length());
+            return new BatchResult(result, "AI 응답이 잘렸거나 형식이 올바르지 않습니다. 다시 시도해 주세요.");
         }
-        return result;
+        return new BatchResult(result, null);
     }
 
-    private List<FixItem> validateAndSave(List<FixTarget> targets, Map<String, RawFix> rawFixes, String content) {
+    private List<FixItem> validateAndSave(List<FixTarget> targets, Map<String, RawFix> rawFixes,
+                                          Map<String, String> batchErrors, String content) {
         List<FixItem> items = new ArrayList<>();
         List<AnalysisIssueLocation> updated = new ArrayList<>();
         List<int[]> takenRanges = new ArrayList<>();
@@ -128,8 +150,11 @@ public class CodeFixService {
             RawFix fix = rawFixes.get(target.promptId());
 
             String failReason = null;
-            if (fix == null || fix.before() == null || fix.before().isEmpty() || fix.after() == null) {
-                failReason = "AI가 이 위치의 수정안을 생성하지 못했습니다.";
+            if (fix == null) {
+                failReason = batchErrors.getOrDefault(target.promptId(),
+                        "AI가 이 위치는 코드만으로 수정할 수 없다고 판단해 수정안을 만들지 않았습니다.");
+            } else if (fix.before() == null || fix.before().isEmpty() || fix.after() == null) {
+                failReason = "AI 수정안 형식이 올바르지 않습니다. 다시 시도해 주세요.";
             } else if (fix.before().equals(fix.after())) {
                 failReason = "변경 내용이 없습니다.";
             } else {
@@ -254,6 +279,7 @@ public class CodeFixService {
 
                     // 적용 결과를 정적 룰로 즉시 재검사 (AI 호출 없음)
                     RealtimeAnalysisResponse remaining = realtimeAnalysisService.analyzeCode(content, request.filePath());
+                    // content: FE 에디터·미리보기 동기화용 (서버 파일과 화면이 어긋나지 않도록)
                     return new ApplyResponse(request.filePath(), applied, failed, remaining, content);
                 }
         );
@@ -326,6 +352,11 @@ public class CodeFixService {
                 .put("before", fix.before())
                 .put("after", fix.after())
                 .toString();
+    }
+
+    private String abbreviate(String text) {
+        String oneLine = text.replaceAll("\\s+", " ").trim();
+        return oneLine.length() > 120 ? oneLine.substring(0, 120) + "…" : oneLine;
     }
 
     private int countOccurrences(String text, String target) {
