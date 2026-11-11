@@ -1,6 +1,7 @@
 package com.example.be_young04.domain.analysis.accessibility.rule;
 
 import com.example.be_young04.domain.analysis.dto.AccessibilityCheckResult;
+import com.example.be_young04.domain.analysis.dto.AccessibilityIssue;
 import com.example.be_young04.domain.analysis.rule.Sc121VideoOnlyPrerecordedRule;
 
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class Sc121VideoOnlyPrerecordedRuleTest {
         assertThat(result.getSuccessCriteria()).isEqualTo("1.2.1");
         assertThat(result.getStatus()).isEqualTo("FAIL");
         assertThat(result.getIssues())
-                .extracting("type")
+                .extracting(AccessibilityIssue::getCode)
                 .containsExactly("VIDEO_ALTERNATIVE_MISSING");
     }
 

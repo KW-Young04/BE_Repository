@@ -1,0 +1,62 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: BE_Young04-test
+
+  main:
+    web-application-type: servlet
+
+  # 테스트 환경에서는 운영 secret 파일(application-secret.properties)이 없어도
+  # 컨텍스트가 로드되도록 optional 로 재정의한다.
+  config:
+    import: optional:file:./application-secret.properties
+
+  # 실제 MySQL(mysql-container) 대신 H2 인메모리 DB 사용
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # 운영 schema.sql/wcag.sql 은 MySQL 전용 문법(ENUM, json 등)이 포함되어 H2 와 호환되지 않으므로
+  # 테스트에서는 SQL 초기화를 끄고 JPA 엔티티 기반으로 스키마를 생성한다.
+  sql:
+    init:
+      mode: never
+
+  jpa:
+    defer-datasource-initialization: false
+    open-in-view: false
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  # SecurityConfig 가 oauth2Login 을 사용하므로 ClientRegistrationRepository 자동 구성을 위해
+  # GitHub OAuth2 클라이언트 등록 정보(더미)를 제공한다.
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: test-client-id
+            client-secret: test-client-secret
+            scope: repo,read:user,user:email
+
+# BedrockAnalysisClient, JwtTokenProvider, OAuth2LoginSuccessHandler 가 요구하는 프로퍼티(더미)
+bedrock:
+  region: us-east-1
+  model-id: test-model-id
+
+app:
+  jwt:
+    secret: test-jwt-secret-value-that-is-at-least-32-characters-long
+    access-token-expiration: 3600000
+  oauth2:
+    redirect-uri: http://localhost:5173/auth/callback
+  git:
+    workspace-root: ./git-workspaces
+    command-timeout-seconds: 30
+    default-remote: origin
