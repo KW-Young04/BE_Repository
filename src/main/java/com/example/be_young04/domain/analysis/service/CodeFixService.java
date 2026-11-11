@@ -10,7 +10,6 @@ import com.example.be_young04.domain.analysis.repository.AnalysisWcagResultRepos
 import com.example.be_young04.domain.git.dto.request.GitFileWriteRequest;
 import com.example.be_young04.domain.git.service.GitWorkingTreeService;
 import com.example.be_young04.domain.git.service.GitWorkspaceManager;
-import com.example.be_young04.domain.git.validator.GitRepositoryValidator;
 import com.example.be_young04.domain.realtime_analysis.dto.RealtimeAnalysisResponse;
 import com.example.be_young04.domain.realtime_analysis.service.RealtimeAnalysisService;
 import com.example.be_young04.domain.repository.repository.RepositoryRepository;
@@ -24,9 +23,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -47,8 +43,8 @@ public class CodeFixService {
 
     private final AiAnalysisClient aiAnalysisClient;
     private final GitWorkspaceManager gitWorkspaceManager;
-    private final GitRepositoryValidator gitRepositoryValidator;
     private final GitWorkingTreeService gitWorkingTreeService;
+    private final CodePatchSupport codePatchSupport;
     private final RealtimeAnalysisService realtimeAnalysisService;
     private final RepositoryRepository repositoryRepository;
     private final WcagItemRepository wcagItemRepository;
@@ -82,7 +78,7 @@ public class CodeFixService {
 
         String content = gitWorkspaceManager.withWorkspace(
                 githubId, request.repositoryUrl(), request.branchName(),
-                workspace -> readFile(workspace.repositoryPath(), request.filePath())
+                workspace -> codePatchSupport.readFile(workspace.repositoryPath(), request.filePath())
         );
 
         Map<String, RawFix> rawFixes = new HashMap<>();
@@ -149,30 +145,10 @@ public class CodeFixService {
             String sc = target.wcagItem().getSc();
             RawFix fix = rawFixes.get(target.promptId());
 
-            String failReason = null;
-            if (fix == null) {
-                failReason = batchErrors.getOrDefault(target.promptId(),
-                        "AI가 이 위치는 코드만으로 수정할 수 없다고 판단해 수정안을 만들지 않았습니다.");
-            } else if (fix.before() == null || fix.before().isEmpty() || fix.after() == null) {
-                failReason = "AI 수정안 형식이 올바르지 않습니다. 다시 시도해 주세요.";
-            } else if (fix.before().equals(fix.after())) {
-                failReason = "변경 내용이 없습니다.";
-            } else {
-                int count = countOccurrences(content, fix.before());
-                if (count == 0) {
-                    failReason = "수정 대상 코드를 현재 파일에서 찾을 수 없습니다.";
-                } else if (count > 1) {
-                    failReason = "수정 대상 코드가 파일에 여러 번 있어 위치를 특정할 수 없습니다.";
-                } else {
-                    int start = content.indexOf(fix.before());
-                    int end = start + fix.before().length();
-                    if (overlaps(takenRanges, start, end)) {
-                        failReason = "다른 수정안과 수정 범위가 겹칩니다.";
-                    } else {
-                        takenRanges.add(new int[]{start, end});
-                    }
-                }
-            }
+            String failReason = (fix == null)
+                    ? batchErrors.getOrDefault(target.promptId(),
+                            "AI가 이 위치는 코드만으로 수정할 수 없다고 판단해 수정안을 만들지 않았습니다.")
+                    : codePatchSupport.validate(content, fix.before(), fix.after(), takenRanges);
 
             if (failReason != null) {
                 items.add(FixItem.failed(locationId, sc, failReason));
@@ -237,7 +213,7 @@ public class CodeFixService {
                 githubId, request.repositoryUrl(), request.branchName(),
                 workspace -> {
                     Path repoPath = workspace.repositoryPath();
-                    String content = readFile(repoPath, request.filePath());
+                    String content = codePatchSupport.readFile(repoPath, request.filePath());
 
                     List<Long> applied = new ArrayList<>();
                     List<FixItem> failed = new ArrayList<>();
@@ -257,7 +233,7 @@ public class CodeFixService {
                             continue;
                         }
 
-                        int count = countOccurrences(content, fix.before());
+                        int count = codePatchSupport.countOccurrences(content, fix.before());
                         if (count != 1) {
                             failed.add(FixItem.failed(locationId, sc, count == 0
                                     ? "파일이 변경되어 수정 대상 코드를 찾을 수 없습니다. 수정안을 다시 생성하세요."
@@ -325,16 +301,6 @@ public class CodeFixService {
         return targets;
     }
 
-    private String readFile(Path repositoryPath, String filePath) {
-        gitRepositoryValidator.validateRepository(repositoryPath);
-        String relativePath = gitRepositoryValidator.validateFilePath(repositoryPath, filePath);
-        try {
-            return Files.readString(repositoryPath.resolve(relativePath).normalize(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "파일을 읽을 수 없습니다: " + filePath);
-        }
-    }
-
     private RawFix parseDetail(AnalysisIssueLocation location) {
         if (!"CODE_FIX".equals(location.getSuggestionType()) || location.getSuggestionDetail() == null) return null;
         try {
@@ -357,19 +323,5 @@ public class CodeFixService {
     private String abbreviate(String text) {
         String oneLine = text.replaceAll("\\s+", " ").trim();
         return oneLine.length() > 120 ? oneLine.substring(0, 120) + "…" : oneLine;
-    }
-
-    private int countOccurrences(String text, String target) {
-        int count = 0;
-        int index = 0;
-        while ((index = text.indexOf(target, index)) != -1) {
-            count++;
-            index += target.length();
-        }
-        return count;
-    }
-
-    private boolean overlaps(List<int[]> ranges, int start, int end) {
-        return ranges.stream().anyMatch(r -> start < r[1] && r[0] < end);
     }
 }
