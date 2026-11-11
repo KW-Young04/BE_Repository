@@ -18,4 +18,8 @@ public class IssueDetailDto {
     private String suggestion;
     private String measuredValue;
     private String thresholdValue;
+    private Long analysisIssueLocationId;
+    private String locationStatus;   // OPEN / MODIFY / COMPLETE
+    private String suggestionType;
+    private String suggestionDetail;
 }

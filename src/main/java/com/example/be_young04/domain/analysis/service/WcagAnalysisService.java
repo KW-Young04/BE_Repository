@@ -218,6 +218,10 @@ public class WcagAnalysisService {
                 .suggestion(location.getSuggestion())
                 .measuredValue(location.getMeasuredValue())
                 .thresholdValue(location.getThresholdValue())
+                .analysisIssueLocationId(location.getAnalysisIssueLocationId())
+                .locationStatus(location.getStatus())
+                .suggestionType(location.getSuggestionType())
+                .suggestionDetail(location.getSuggestionDetail())
                 .build();
     }
 
