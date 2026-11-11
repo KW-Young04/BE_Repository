@@ -1,5 +1,7 @@
 package com.example.be_young04.domain.analysis.controller;
 
+import com.example.be_young04.domain.analysis.dto.CodeFixDto;
+import com.example.be_young04.domain.analysis.service.CodeFixService;
 import com.example.be_young04.domain.analysis.service.WcagAnalysisService;
 import com.example.be_young04.domain.realtime_analysis.dto.RealtimeAnalysisResponse;
 import com.example.be_young04.domain.snapshot.dto.PageSnapshot;
@@ -9,6 +11,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +32,7 @@ public class WcagAnalysisController {
 
     private final WcagAnalysisService wcagAnalysisService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final CodeFixService codeFixService;
 
     @Operation(
             summary = "WCAG 접근성 분석 실행",
@@ -115,5 +119,27 @@ public class WcagAnalysisController {
                     return new PageSnapshot(meta.snapshotId(), image, meta.renderedFilePaths());
                 })
                 .toList();
+    }
+
+    @Operation(summary = "AI 코드 수정안 생성", description = "파일 단위로 위반 위치별 before/after 수정안을 생성합니다.")
+    @PostMapping("/{repositoryId}/fixes")
+    public ResponseEntity<ApiResponse<CodeFixDto.GenerateResponse>> generateFixes(
+            @AuthenticationPrincipal Long githubId,
+            @PathVariable Long repositoryId,
+            @Valid @RequestBody CodeFixDto.GenerateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("200WCAG003", "AI 수정안 생성 완료",
+                codeFixService.generate(githubId, repositoryId, request)));
+    }
+
+    @Operation(summary = "AI 코드 수정안 적용", description = "선택한 수정안을 작업 파일에 반영하고 정적 룰로 재검사합니다.")
+    @PostMapping("/{repositoryId}/fixes/apply")
+    public ResponseEntity<ApiResponse<CodeFixDto.ApplyResponse>> applyFixes(
+            @AuthenticationPrincipal Long githubId,
+            @PathVariable Long repositoryId,
+            @Valid @RequestBody CodeFixDto.ApplyRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("200WCAG004", "AI 수정안 적용 완료",
+                codeFixService.apply(githubId, repositoryId, request)));
     }
 }
