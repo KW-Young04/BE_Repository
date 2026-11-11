@@ -35,6 +35,13 @@ public class GitController {
         return gitQueryService.getBranches();
     }
 
+    @GetMapping("/graph")
+    public GitGraphResponse getGraph(
+            @RequestParam(defaultValue = "100") int limit
+    ) {
+        return gitQueryService.getGraph(limit);
+    }
+
     @PostMapping("/commit")
     public GitCommitResponse commit(
             @Valid @RequestBody GitCommitRequest request
