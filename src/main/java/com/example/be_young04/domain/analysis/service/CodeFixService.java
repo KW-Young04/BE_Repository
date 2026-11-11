@@ -254,7 +254,7 @@ public class CodeFixService {
 
                     // 적용 결과를 정적 룰로 즉시 재검사 (AI 호출 없음)
                     RealtimeAnalysisResponse remaining = realtimeAnalysisService.analyzeCode(content, request.filePath());
-                    return new ApplyResponse(request.filePath(), applied, failed, remaining);
+                    return new ApplyResponse(request.filePath(), applied, failed, remaining, content);
                 }
         );
     }
