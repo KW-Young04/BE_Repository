@@ -91,7 +91,7 @@ public class ChatService {
         ).orElse(List.of());
         IssueDetailDto selected = findSelected(issues, request.selectedLocationId());
         FileSection file = loadFileSection(githubId, request, issues);
-        List<ChatMessage> history = recentHistory(repositoryId);
+        List<ChatMessage> history = recentHistory(repositoryId, request.historyMessageIds());
 
         String raw = aiAnalysisClient.analyze(buildPrompt(issues, selected, file, history, question), List.of());
         AiReply reply = parseReply(raw);
@@ -148,7 +148,13 @@ public class ChatService {
         return new FileSection(FileContext.SNIPPETS, path, snippets);
     }
 
-    private List<ChatMessage> recentHistory(Long repositoryId) {
+    List<ChatMessage> recentHistory(Long repositoryId, List<Long> messageIds) {
+        // Older clients omit this field. New clients explicitly scope their conversation.
+        if (messageIds != null) {
+            if (messageIds.isEmpty()) return List.of();
+            return chatMessageRepository.findByRepositoryIdAndChatMessageIdInOrderByCreatedAtAscChatMessageIdAsc(
+                    repositoryId, messageIds);
+        }
         List<ChatMessage> latest = new ArrayList<>(
                 chatMessageRepository.findTop10ByRepositoryIdOrderByCreatedAtDescChatMessageIdDesc(repositoryId));
         Collections.reverse(latest);
