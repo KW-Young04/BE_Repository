@@ -21,7 +21,8 @@ public final class ChatDto {
             @NotBlank String repositoryUrl,
             @NotBlank String branchName,
             String activeFilePath,      // 선택: 사용자가 열어둔 파일
-            Long selectedLocationId     // 선택: 사용자가 선택한 이슈 위치
+            Long selectedLocationId,    // 선택: 사용자가 선택한 이슈 위치
+            @Size(max = 10) List<@NotNull Long> historyMessageIds // 현재 대화의 메시지 ID. 빈 목록은 새 대화
     ) {
     }
 
